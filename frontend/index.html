@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hermes Studio — Agentic Tool Suite + Vision</title>
+  <title>Hermes Studio v4 — Agentic Tool Suite</title>
   <link rel="icon" href="/hermes.ico" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -539,6 +539,14 @@
       </div>
 
       <div class="sidebar-section">
+        <div class="sidebar-label">Safety</div>
+        <div class="model-item">
+          <div class="model-dot on"></div>
+          <span class="model-name" style="color: var(--green)">ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
         <div class="sidebar-label">Workspace</div>
       </div>
       <div class="workspace-tree" id="workspace-tree"></div>
@@ -571,6 +579,15 @@
             <span class="agent-title">Live Execution Stream</span>
             <span class="agent-step-counter" id="agent-step-counter">step 0/0</span>
           </div>
+          <div style="padding: 0.5rem; border-bottom: 1px solid var(--border);">
+            <div class="sidebar-label" style="margin-bottom: 0.3rem;">Quick Scaffold</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.3rem;">
+              <button class="mode-tab" onclick="scaffold('react-ts')" style="font-size: 0.6rem; padding: 0.2rem 0.5rem;">React+TS</button>
+              <button class="mode-tab" onclick="scaffold('python-fastapi')" style="font-size: 0.6rem; padding: 0.2rem 0.5rem;">FastAPI</button>
+              <button class="mode-tab" onclick="scaffold('node-express')" style="font-size: 0.6rem; padding: 0.2rem 0.5rem;">Express</button>
+              <button class="mode-tab" onclick="scaffold('static-html')" style="font-size: 0.6rem; padding: 0.2rem 0.5rem;">Static</button>
+            </div>
+          </div>
           <div class="agent-stream" id="agent-stream"></div>
         </div>
       </div>
@@ -586,7 +603,7 @@
           <button class="send-btn" id="send-btn" onclick="send()">&#8593;</button>
           <button class="stop-btn" id="stop-btn" onclick="stop()">x</button>
         </div>
-        <div class="input-hint">Enter = send | Shift+Enter = newline | Agent mode builds complete projects with tools</div>
+        <div class="input-hint">Enter = send | Shift+Enter = newline | 15 tools | Safety active | Plugins supported</div>
       </div>
     </div>
   </div>
@@ -863,6 +880,15 @@
       `;
       $agentStream.appendChild(div);
       $agentStream.scrollTop = $agentStream.scrollHeight;
+    }
+
+    async function scaffold(template) {
+      const name = prompt("Project name:");
+      if (!name) return;
+      switchMode('agent');
+      const task = `Scaffold a ${template} project named "${name}". Use scaffold_project tool with template="${template}" and name="${name}". Then read the created files and verify they look correct.`;
+      $input.value = task;
+      send();
     }
 
     function stop() {
