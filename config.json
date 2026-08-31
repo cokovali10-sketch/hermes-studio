@@ -6,17 +6,31 @@
   "models": {
     "reasoning": "deepseek-r1:1.5b",
     "coding": "qwen2.5-coder:1.5b",
-    "fallback": "deepseek-r1:1.5b"
+    "fallback": "deepseek-r1:1.5b",
+    "agent": "qwen2.5-coder:1.5b"
   },
   "ollama": {
     "host": "http://127.0.0.1:11434",
     "auto_start": true
   },
   "paths": {
-    "uploads": "D:/PortfolioProjects/Hermes/uploads"
+    "workspace": "D:/PortfolioProjects/Hermes/workspace",
+    "uploads": "D:/PortfolioProjects/Hermes/uploads",
+    "backups": "D:/PortfolioProjects/Hermes/backups"
   },
   "limits": {
-    "max_upload_mb": 10,
-    "max_prompt_chars": 8000
+    "max_upload_mb": 50,
+    "max_prompt_chars": 32000,
+    "max_tool_steps": 50,
+    "shell_timeout_sec": 120
+  },
+  "tools": {
+    "allowed_dirs": ["D:/PortfolioProjects/Hermes/workspace"],
+    "git_auto_commit": true,
+    "backup_on_write": true
+  },
+  "agent": {
+    "system_prompt": "You are Hermes, an autonomous AI agent that builds complete software projects. You have access to tools for file operations, shell commands, git, and project analysis. Work step by step, use tools to accomplish the user's goal, and report progress via the event stream. Always write clean, production-ready code.",
+    "max_iterations": 30
   }
 }

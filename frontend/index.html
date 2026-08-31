@@ -3,164 +3,241 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hermes Studio</title>
+  <title>Hermes Studio — Agentic Tool Suite</title>
   <link rel="icon" href="/hermes.ico" />
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
     :root {
-      --bg: #0a0e17;
-      --bg-subtle: #111827;
-      --card: #1a2230;
-      --border: #2a3548;
-      --fg: #e6e8f0;
-      --muted: #7d8a9e;
-      --accent: #00d4aa;
-      --accent-hover: #00f5c4;
-      --warning: #f87171;
-      --success: #22c55e;
+      --bg: #09090b;
+      --bg-subtle: #0f0f12;
+      --surface: rgba(255,255,255,0.03);
+      --surface-hover: rgba(255,255,255,0.06);
+      --glass: rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.06);
+      --border-focus: rgba(255,255,255,0.15);
+      --fg: #fafafa;
+      --fg-secondary: #a1a1aa;
+      --fg-muted: #52525b;
+      --accent: #22d3ee;
+      --accent-dim: rgba(34,211,238,0.12);
+      --green: #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
+      --yellow: #eab308;
+      --yellow-dim: rgba(234,179,8,0.12);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59,130,246,0.12);
+      --purple: #a78bfa;
+      --purple-dim: rgba(167,139,250,0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+      --shadow: 0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,0.4);
+      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
       background: var(--bg);
       color: var(--fg);
       height: 100vh;
-      display: flex;
-      flex-direction: column;
       overflow: hidden;
     }
 
-    /* ── Header ── */
-    header {
-      background: rgba(10, 14, 23, 0.9);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 0.6rem 1rem;
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-subtle);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
       flex-shrink: 0;
     }
 
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+    .sidebar-header {
+      padding: 1rem 1rem 0.75rem;
+      border-bottom: 1px solid var(--border);
     }
 
     .logo {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-family: monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-      white-space: nowrap;
     }
 
-    .logo-mark {
-      width: 24px; height: 24px;
-      border-radius: 5px;
-      background: var(--bg);
-      color: var(--accent);
+    .logo-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-xs);
+      background: linear-gradient(135deg, var(--accent), #06b6d4);
       display: grid; place-items: center;
-      font-weight: bold; font-size: 0.8rem;
+      font-weight: 700; font-size: 0.75rem;
+      color: #000;
     }
 
-    .models {
-      display: flex;
-      gap: 0.5rem;
-      flex: 1;
-      justify-content: center;
+    .logo-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
     }
 
-    .model-tag {
+    .logo-version {
+      font-size: 0.55rem;
+      color: var(--fg-muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-left: auto;
+    }
+
+    .sidebar-section {
+      padding: 0.75rem 0;
+    }
+
+    .sidebar-label {
+      padding: 0 1rem;
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .model-item {
       display: flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 12px;
-      font-family: monospace;
-      font-size: 0.6rem;
-      border: 1px solid var(--border);
-      color: var(--muted);
+      gap: 0.5rem;
+      padding: 0.4rem 1rem;
+      font-size: 0.72rem;
+      cursor: default;
     }
 
-    .model-tag .dot {
+    .model-dot {
       width: 6px; height: 6px;
       border-radius: 50%;
       flex-shrink: 0;
     }
 
-    .model-tag .dot.on { background: var(--success); box-shadow: 0 0 4px var(--success); }
-    .model-tag .dot.off { background: var(--warning); box-shadow: 0 0 4px var(--warning); }
+    .model-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .model-dot.off { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
-    .model-tag .label { color: var(--muted); }
-    .model-tag .name { color: var(--fg); font-weight: 500; }
-
-    .voice-btn {
-      padding: 0.3rem 0.6rem;
-      border-radius: 16px;
-      font-family: monospace;
-      font-size: 0.6rem;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.2s;
+    .model-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--fg-secondary);
     }
 
-    .voice-btn:hover { background: var(--bg-subtle); }
-    .voice-btn.on { border-color: var(--accent); color: var(--accent); }
+    .workspace-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem 0;
+    }
 
-    /* ── Main layout ── */
-    main {
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 1rem 0.25rem calc(1rem + var(--depth, 0) * 12px);
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--fg-secondary);
+      cursor: default;
+    }
+
+    .tree-item:hover { background: var(--surface-hover); }
+
+    .tree-icon { font-size: 0.65rem; width: 14px; text-align: center; }
+    .tree-icon.dir { color: var(--accent); }
+    .tree-icon.file { color: var(--fg-muted); }
+
+    .tree-name { flex: 1; }
+    .tree-size { color: var(--fg-muted); font-size: 0.6rem; }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-subtle);
+      flex-shrink: 0;
+    }
+
+    .mode-tabs {
+      display: flex;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-tab {
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-xs);
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+      color: var(--fg-muted);
+      border: none;
+      background: none;
+    }
+
+    .mode-tab.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    .mode-tab:hover:not(.active) { color: var(--fg-secondary); }
+
+    .topbar-spacer { flex: 1; }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.6rem;
+      font-family: 'JetBrains Mono', monospace;
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+    }
+
+    .status-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+    }
+
+    .status-dot.ok { background: var(--green); }
+    .status-dot.err { background: var(--red); }
+
+    /* ── Content Area ── */
+    .content {
       flex: 1;
       display: flex;
       overflow: hidden;
     }
 
-    /* ── Sidebar ── */
-    .sidebar {
-      width: 240px;
-      background: var(--bg-subtle);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
-
-    .sidebar-title {
-      padding: 0.6rem 0.8rem;
-      font-family: monospace;
-      font-size: 0.6rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .events {
-      flex: 1;
-      padding: 0.5rem;
-      overflow-y: auto;
-      font-family: monospace;
-      font-size: 0.6rem;
-      color: var(--muted);
-    }
-
-    .event {
-      padding: 0.2rem 0.4rem;
-      margin-bottom: 0.2rem;
-      border-left: 2px solid var(--border);
-      word-break: break-all;
-    }
-
-    .event.route-coding { border-left-color: #60a5fa; }
-    .event.route-reasoning { border-left-color: var(--accent); }
-
-    /* ── Chat ── */
-    .chat {
+    /* ── Chat Panel ── */
+    .chat-panel {
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -177,163 +254,337 @@
     }
 
     .msg {
-      max-width: 85%;
-      padding: 0.6rem 0.9rem;
-      border-radius: 1rem;
-      font-size: 0.85rem;
-      line-height: 1.6;
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      line-height: 1.65;
       white-space: pre-wrap;
       word-wrap: break-word;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .msg.user {
       align-self: flex-end;
-      background: var(--card);
-      border: 1px solid var(--border);
+      background: var(--accent-dim);
+      border: 1px solid rgba(34,211,238,0.15);
+      color: var(--fg);
     }
 
     .msg.ai {
       align-self: flex-start;
-      background: var(--bg);
+      background: var(--surface);
       border: 1px solid var(--border);
+      color: var(--fg);
     }
 
-    .msg .model-badge {
+    .msg .badge {
       display: inline-block;
-      margin-top: 0.3rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 8px;
-      font-family: monospace;
+      margin-top: 0.4rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: var(--radius-xs);
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.55rem;
-      background: var(--bg-subtle);
-      color: var(--muted);
-      border: 1px solid var(--border);
+      font-weight: 500;
     }
 
-    .msg .model-badge.coding { color: #60a5fa; border-color: #60a5fa33; }
-    .msg .model-badge.reasoning { color: var(--accent); border-color: #00d4aa33; }
+    .badge.coding { background: var(--blue-dim); color: var(--blue); }
+    .badge.reasoning { background: var(--green-dim); color: var(--green); }
+    .badge.agent { background: var(--purple-dim); color: var(--purple); }
 
     .msg img {
-      max-width: 200px; max-height: 150px;
-      margin-top: 0.4rem;
-      border-radius: 0.5rem;
+      max-width: 220px; max-height: 160px;
+      margin-top: 0.5rem;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--border);
     }
 
-    /* ── Input ── */
+    /* ── Agent Stream Panel ── */
+    .agent-panel {
+      width: 380px;
+      border-left: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      background: var(--bg-subtle);
+    }
+
+    .agent-panel.visible { display: flex; }
+
+    .agent-header {
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .agent-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      flex: 1;
+    }
+
+    .agent-step-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--fg-muted);
+    }
+
+    .agent-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+
+    .stream-entry {
+      padding: 0.5rem 0.6rem;
+      margin-bottom: 0.3rem;
+      border-radius: var(--radius-xs);
+      border-left: 2px solid var(--border);
+      background: var(--surface);
+      animation: fadeIn 0.2s ease;
+    }
+
+    .stream-entry.tool-call { border-left-color: var(--accent); }
+    .stream-entry.tool-result { border-left-color: var(--green); }
+    .stream-entry.tool-error { border-left-color: var(--red); }
+    .stream-entry.agent-text { border-left-color: var(--purple); }
+    .stream-entry.agent-step { border-left-color: var(--yellow); background: var(--yellow-dim); }
+
+    .stream-entry-header {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .stream-tool-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    .stream-entry.agent-text .stream-tool-name { color: var(--purple); }
+    .stream-entry.agent-step .stream-tool-name { color: var(--yellow); }
+
+    .stream-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.5rem;
+      color: var(--fg-muted);
+      margin-left: auto;
+    }
+
+    .stream-entry-body {
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--fg-secondary);
+      line-height: 1.5;
+      word-break: break-all;
+    }
+
+    .stream-entry-body .cmd {
+      color: var(--accent);
+    }
+
+    .stream-entry-body .path {
+      color: var(--green);
+    }
+
+    .stream-entry-body .err {
+      color: var(--red);
+    }
+
+    /* ── Input Area ── */
     .input-area {
-      padding: 0.6rem 1rem;
-      background: var(--bg);
+      padding: 0.75rem 1rem;
       border-top: 1px solid var(--border);
+      background: var(--bg-subtle);
+    }
+
+    .input-wrapper {
       display: flex;
       gap: 0.5rem;
       align-items: flex-end;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.4rem 0.5rem;
+      transition: border-color var(--transition);
+    }
+
+    .input-wrapper:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
     }
 
     .file-btn {
-      width: 32px; height: 32px;
-      border-radius: 20px;
-      background: var(--bg);
+      width: 30px; height: 30px;
+      border-radius: var(--radius-xs);
+      background: none;
       border: 1px solid var(--border);
       display: grid; place-items: center;
-      cursor: pointer; flex-shrink: 0;
-      font-size: 0.9rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--fg-muted);
+      flex-shrink: 0;
+      transition: all var(--transition);
     }
 
+    .file-btn:hover { border-color: var(--accent); color: var(--accent); }
     .file-btn input { display: none; }
 
     textarea {
       flex: 1;
-      background: transparent;
+      background: none;
       border: none; outline: none;
       resize: none;
       font-family: inherit;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       color: var(--fg);
-      padding: 0.4rem;
-      min-height: 2rem;
-      max-height: 100px;
-      line-height: 1.4;
+      padding: 0.3rem 0.2rem;
+      min-height: 1.8rem;
+      max-height: 120px;
+      line-height: 1.5;
     }
 
-    textarea::placeholder { color: var(--muted); }
+    textarea::placeholder { color: var(--fg-muted); }
 
     .send-btn {
-      width: 32px; height: 32px;
-      border-radius: 20px;
+      width: 30px; height: 30px;
+      border-radius: var(--radius-xs);
       background: var(--accent);
       color: #000;
-      font-family: monospace;
-      font-weight: bold; font-size: 0.8rem;
+      font-weight: 700; font-size: 0.8rem;
       display: grid; place-items: center;
-      cursor: pointer; flex-shrink: 0;
+      cursor: pointer;
+      flex-shrink: 0;
       border: none;
+      transition: all var(--transition);
     }
 
-    .send-btn:hover { background: var(--accent-hover); }
+    .send-btn:hover { background: #06b6d4; }
+    .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     .stop-btn {
-      width: 32px; height: 32px;
-      border-radius: 20px;
-      background: var(--warning);
+      width: 30px; height: 30px;
+      border-radius: var(--radius-xs);
+      background: var(--red);
       color: #fff;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
+      font-weight: 700;
       display: none; place-items: center;
-      cursor: pointer; flex-shrink: 0;
+      cursor: pointer;
+      flex-shrink: 0;
       border: none;
     }
 
     .stop-btn.visible { display: grid; }
 
-    @media (max-width: 768px) {
+    .input-hint {
+      font-size: 0.55rem;
+      color: var(--fg-muted);
+      padding: 0.3rem 0 0 0;
+      text-align: right;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+
+    @media (max-width: 900px) {
       .sidebar { display: none; }
+      .agent-panel { display: none !important; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="header">
-      <div class="logo">
-        <div class="logo-mark">H</div>
-        <span>HERMES STUDIO</span>
-      </div>
-
-      <div class="models">
-        <div class="model-tag">
-          <div class="dot" id="dot-reasoning"></div>
-          <span class="label">Logic:</span>
-          <span class="name" id="name-reasoning">...</span>
-        </div>
-        <div class="model-tag">
-          <div class="dot" id="dot-coding"></div>
-          <span class="label">Code:</span>
-          <span class="name" id="name-coding">...</span>
-        </div>
-      </div>
-
-      <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">off</button>
-    </div>
-  </header>
-
-  <main>
-    <div class="chat">
-      <div class="messages" id="messages"></div>
-    </div>
-
+  <div class="app">
+    <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-title">Agent Log</div>
-      <div class="events" id="events-log"></div>
-    </aside>
-  </main>
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">H</div>
+          <span class="logo-text">HERMES</span>
+          <span class="logo-version">v3</span>
+        </div>
+      </div>
 
-  <div class="input-area">
-    <label class="file-btn">
-      <input type="file" id="file-input" accept="image/*,.txt,.md,.json" onchange="handleFile(event)"/>
-      +
-    </label>
-    <textarea id="input" placeholder="Message Hermes...  Enter = send" onkeydown="handleKey(event)"></textarea>
-    <button class="send-btn" id="send-btn" onclick="send()">&#8593;</button>
-    <button class="stop-btn" id="stop-btn" onclick="stop()">x</button>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Models</div>
+        <div class="model-item">
+          <div class="model-dot" id="dot-reasoning"></div>
+          <span class="model-name" id="name-reasoning">...</span>
+        </div>
+        <div class="model-item">
+          <div class="model-dot" id="dot-coding"></div>
+          <span class="model-name" id="name-coding">...</span>
+        </div>
+        <div class="model-item">
+          <div class="model-dot" id="dot-agent"></div>
+          <span class="model-name" id="name-agent">...</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Workspace</div>
+      </div>
+      <div class="workspace-tree" id="workspace-tree"></div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <!-- Top Bar -->
+      <div class="topbar">
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="chat" onclick="switchMode('chat')">Chat</button>
+          <button class="mode-tab" data-mode="agent" onclick="switchMode('agent')">Agent</button>
+        </div>
+        <div class="topbar-spacer"></div>
+        <div class="status-pill">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-text">connecting...</span>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+        <div class="chat-panel">
+          <div class="messages" id="messages"></div>
+        </div>
+
+        <!-- Agent Stream Panel -->
+        <div class="agent-panel" id="agent-panel">
+          <div class="agent-header">
+            <span class="agent-title">Live Execution Stream</span>
+            <span class="agent-step-counter" id="agent-step-counter">step 0/0</span>
+          </div>
+          <div class="agent-stream" id="agent-stream"></div>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="input-area">
+        <div class="input-wrapper">
+          <label class="file-btn">
+            <input type="file" id="file-input" accept="image/*,.txt,.md,.json,.ts,.tsx,.py,.html,.css" onchange="handleFile(event)"/>
+            +
+          </label>
+          <textarea id="input" placeholder="Describe what to build..." onkeydown="handleKey(event)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="send()">&#8593;</button>
+          <button class="stop-btn" id="stop-btn" onclick="stop()">x</button>
+        </div>
+        <div class="input-hint">Enter = send | Shift+Enter = newline | Agent mode builds complete projects with tools</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -345,37 +596,35 @@
     let pendingB64 = null;
     let isStreaming = false;
     let abortCtrl = null;
-    let voiceOn = false;
-    let activeRoute = '';
+    let mode = 'chat';
+    let agentSteps = [];
 
     const $msgs = document.getElementById('messages');
-    const $evts = document.getElementById('events-log');
     const $input = document.getElementById('input');
     const $sendBtn = document.getElementById('send-btn');
     const $stopBtn = document.getElementById('stop-btn');
-    const $voiceBtn = document.getElementById('voice-btn');
+    const $agentPanel = document.getElementById('agent-panel');
+    const $agentStream = document.getElementById('agent-stream');
+    const $agentStepCounter = document.getElementById('agent-step-counter');
 
-    // ── Initial greeting ──
     messages.push({
       role: 'assistant',
-      text: 'Привет! Я Hermes Studio — локальный ИИ без облаков.\nЗадай вопрос, кинь скрин + или скажи "напиши сайт".',
+      text: 'Hermes v3 — Agentic Tool Suite.\n\nChat mode: ask anything, get answers.\nAgent mode: describe a project, Hermes builds it with tools on your disk.',
       route: 'reasoning'
     });
     render();
 
-    // ── Render ──
     function render() {
       $msgs.innerHTML = messages.map((m, i) => {
         const cls = m.role === 'user' ? 'msg user' : 'msg ai';
         let badge = '';
         if (m.role === 'assistant' && m.route) {
-          badge = `<div class="model-badge ${m.route}">${m.route === 'coding' ? 'qwen2.5-coder' : 'deepseek-r1'}</div>`;
+          const labels = { coding: 'qwen2.5-coder', reasoning: 'deepseek-r1', agent: 'agent-loop' };
+          badge = `<div class="badge ${m.route}">${labels[m.route] || m.route}</div>`;
         }
         let img = '';
-        if (m.img) {
-          img = `<img src="${m.img}"/>`;
-        }
-        return `<div class="${cls}" style="animation:fadeIn .3s ease ${i * 0.03}s both">${escapeHtml(m.text)}${badge}${img}</div>`;
+        if (m.img) img = `<img src="${m.img}"/>`;
+        return `<div class="${cls}">${escapeHtml(m.text)}${badge}${img}</div>`;
       }).join('');
       $msgs.scrollTop = $msgs.scrollHeight;
     }
@@ -384,7 +633,18 @@
       return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    // ── File ──
+    function switchMode(m) {
+      mode = m;
+      document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+      if (m === 'agent') {
+        $agentPanel.classList.add('visible');
+        $input.placeholder = 'Describe the project to build (e.g. "Create a React todo app with TypeScript and Tailwind")';
+      } else {
+        $agentPanel.classList.remove('visible');
+        $input.placeholder = 'Describe what to build...';
+      }
+    }
+
     function handleFile(e) {
       const f = e.target.files[0];
       if (!f) return;
@@ -396,15 +656,6 @@
       }
     }
 
-    // ── Voice ──
-    function toggleVoice() {
-      voiceOn = !voiceOn;
-      $voiceBtn.textContent = voiceOn ? 'on' : 'off';
-      $voiceBtn.classList.toggle('on', voiceOn);
-      if (!voiceOn) speechSynthesis.cancel();
-    }
-
-    // ── Keys ──
     function handleKey(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -412,17 +663,23 @@
       }
     }
 
-    // ── Send ──
     async function send() {
       const prompt = $input.value.trim();
       if ((!prompt && !pendingFile) || isStreaming) return;
 
       const imgB64 = pendingB64;
-      const file = pendingFile;
       pendingFile = null;
       pendingB64 = null;
       $input.value = '';
 
+      if (mode === 'agent') {
+        await sendAgent(prompt);
+      } else {
+        await sendChat(prompt, imgB64);
+      }
+    }
+
+    async function sendChat(prompt, imgB64) {
       messages.push({ role: 'user', text: prompt || '[file]', img: imgB64 ? 'data:image/png;base64,' + imgB64 : undefined });
       messages.push({ role: 'assistant', text: '', route: '' });
       render();
@@ -433,7 +690,7 @@
       $stopBtn.classList.add('visible');
 
       const history = messages.slice(0, -2).slice(-8).map(m => ({ role: m.role, content: m.text }));
-      const body = { prompt, history, stream: true };
+      const body = { prompt, history };
       if (imgB64) body.images = [imgB64];
 
       try {
@@ -449,6 +706,7 @@
         const reader = r.body.getReader();
         const dec = new TextDecoder();
         let buf = '';
+        let activeRoute = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -462,12 +720,8 @@
             if (!p.startsWith('data: ')) continue;
             try {
               const j = JSON.parse(p.slice(6));
-              if (j.model) {
-                activeRoute = j.route || '';
-              }
-              if (j.done) {
-                break;
-              }
+              if (j.model) activeRoute = j.route || '';
+              if (j.done) break;
               if (j.text) {
                 messages[messages.length - 1].text += j.text;
                 messages[messages.length - 1].route = activeRoute;
@@ -476,18 +730,10 @@
             } catch {}
           }
         }
-
-        // Voice
-        if (voiceOn && messages[messages.length - 1].text) {
-          const u = new SpeechSynthesisUtterance(messages[messages.length - 1].text.slice(0, 200));
-          u.lang = 'ru-RU';
-          speechSynthesis.speak(u);
-        }
       } catch (e) {
         if (e.name === 'AbortError') {
           messages[messages.length - 1].text += ' [stopped]';
         } else {
-          // Fallback to non-streaming
           try {
             const r = await fetch(API + '/api/chat', {
               method: 'POST',
@@ -510,57 +756,196 @@
       render();
     }
 
+    async function sendAgent(task) {
+      messages.push({ role: 'user', text: task });
+      messages.push({ role: 'assistant', text: '', route: 'agent' });
+      render();
+
+      agentSteps = [];
+      $agentStream.innerHTML = '';
+      $agentStepCounter.textContent = 'starting...';
+      isStreaming = true;
+      abortCtrl = new AbortController();
+      $sendBtn.style.display = 'none';
+      $stopBtn.classList.add('visible');
+
+      try {
+        const r = await fetch(API + '/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task }),
+          signal: abortCtrl.signal,
+        });
+
+        if (!r.ok || !r.body) throw new Error('Agent stream failed');
+
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+
+          const parts = buf.split('\n\n');
+          buf = parts.pop();
+
+          for (const p of parts) {
+            if (!p.startsWith('data: ')) continue;
+            try {
+              const j = JSON.parse(p.slice(6));
+              handleAgentEvent(j);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          addStreamEntry('agent-text', 'Aborted by user.');
+        } else {
+          addStreamEntry('tool-error', `Error: ${e.message}`);
+        }
+      }
+
+      isStreaming = false;
+      abortCtrl = null;
+      $sendBtn.style.display = '';
+      $stopBtn.classList.remove('visible');
+    }
+
+    function handleAgentEvent(ev) {
+      if (ev.type === 'step') {
+        const args = typeof ev.args === 'string' ? ev.args : JSON.stringify(ev.args);
+        let body = '';
+        if (ev.tool === 'workspace_file_ops') {
+          const a = typeof ev.args === 'string' ? JSON.parse(ev.args || '{}') : (ev.args || {});
+          body = `<span class="cmd">${a.action || 'write'}</span> <span class="path">${a.path || ''}</span>`;
+        } else if (ev.tool === 'execute_shell_command') {
+          const a = typeof ev.args === 'string' ? JSON.parse(ev.args || '{}') : (ev.args || {});
+          body = `<span class="cmd">${a.command || ''}</span>`;
+        } else if (ev.tool === 'git_checkpoint') {
+          const a = typeof ev.args === 'string' ? JSON.parse(ev.args || '{}') : (ev.args || {});
+          body = `commit: ${a.message || ''}`;
+        } else if (ev.tool === 'analyze_project_structure') {
+          body = 'scanning workspace...';
+        } else if (ev.tool === 'done') {
+          body = `<span class="path">${ev.args?.summary || 'task complete'}</span>`;
+        } else {
+          body = args;
+        }
+        addStreamEntry('tool-call', body, ev.tool);
+        $agentStepCounter.textContent = `step ${ev.step}`;
+      } else if (ev.type === 'done') {
+        const r = ev.result || {};
+        const summary = r.summary || 'Done.';
+        messages[messages.length - 1].text = summary;
+        addStreamEntry('agent-step', `Finished in ${r.steps || 0} steps.`);
+        render();
+      } else if (ev.type === 'error') {
+        addStreamEntry('tool-error', ev.error);
+      }
+    }
+
+    function addStreamEntry(cls, body, toolName) {
+      const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const div = document.createElement('div');
+      div.className = `stream-entry ${cls}`;
+      div.innerHTML = `
+        <div class="stream-entry-header">
+          <span class="stream-tool-name">${toolName || cls}</span>
+          <span class="stream-time">${now}</span>
+        </div>
+        <div class="stream-entry-body">${body}</div>
+      `;
+      $agentStream.appendChild(div);
+      $agentStream.scrollTop = $agentStream.scrollHeight;
+    }
+
     function stop() {
       if (abortCtrl) abortCtrl.abort();
       isStreaming = false;
     }
 
-    // ── SSE events ──
+    // ── SSE Events ──
     evtSource.onmessage = (e) => {
       try {
         const m = JSON.parse(e.data);
-        const div = document.createElement('div');
-        div.className = 'event';
-        if (m.event && m.event.includes('coding')) div.classList.add('route-coding');
-        if (m.event && m.event.includes('reasoning')) div.classList.add('route-reasoning');
-        const payload = m.payload ? JSON.stringify(m.payload).slice(0, 80) : '';
-        div.textContent = `[${m.event}] ${payload}`;
-        $evts.insertBefore(div, $evts.firstChild);
+        if (m.event === 'agent.tool_call') {
+          const tool = m.payload?.tool || '';
+          const args = m.payload?.args || '';
+          addStreamEntry('tool-call', args, tool);
+        } else if (m.event === 'agent.text') {
+          addStreamEntry('agent-text', m.payload?.text || '');
+        } else if (m.event === 'agent.error') {
+          addStreamEntry('tool-error', m.payload?.error || '');
+        }
       } catch {}
     };
 
-    // ── Model status polling ──
+    // ── Model Status ──
     async function checkModels() {
       try {
         const r = await fetch(API + '/api/models');
         const s = await r.json();
 
-        const rDot = document.getElementById('dot-reasoning');
-        const cDot = document.getElementById('dot-coding');
-        const rName = document.getElementById('name-reasoning');
-        const cName = document.getElementById('name-coding');
+        const dots = { reasoning: 'dot-reasoning', coding: 'dot-coding', agent: 'dot-agent' };
+        const names = { reasoning: 'name-reasoning', coding: 'name-coding', agent: 'name-agent' };
 
-        if (s.ollama.available) {
-          rDot.className = 'dot ' + (s.reasoning.installed ? 'on' : 'off');
-          cDot.className = 'dot ' + (s.coding.installed ? 'on' : 'off');
-          rName.textContent = s.reasoning.model;
-          cName.textContent = s.coding.model;
-        } else {
-          rDot.className = 'dot off';
-          cDot.className = 'dot off';
-          rName.textContent = 'offline';
-          cName.textContent = 'offline';
+        for (const key of ['reasoning', 'coding', 'agent']) {
+          const dot = document.getElementById(dots[key]);
+          const name = document.getElementById(names[key]);
+          if (s.ollama?.available && s[key]?.installed) {
+            dot.className = 'model-dot on';
+            name.textContent = s[key].model;
+          } else {
+            dot.className = 'model-dot off';
+            name.textContent = s[key]?.model || 'offline';
+          }
         }
+
+        document.getElementById('status-dot').className = 'status-dot ' + (s.ollama?.available ? 'ok' : 'err');
+        document.getElementById('status-text').textContent = s.ollama?.available ? 'online' : 'offline';
       } catch {
-        document.getElementById('dot-reasoning').className = 'dot off';
-        document.getElementById('dot-coding').className = 'dot off';
-        document.getElementById('name-reasoning').textContent = 'offline';
-        document.getElementById('name-coding').textContent = 'offline';
+        document.getElementById('status-dot').className = 'status-dot err';
+        document.getElementById('status-text').textContent = 'error';
       }
     }
 
+    // ── Workspace Tree ──
+    async function loadWorkspace() {
+      try {
+        const r = await fetch(API + '/api/workspace');
+        const data = await r.json();
+        renderTree(data.tree || [], 0);
+      } catch {
+        document.getElementById('workspace-tree').innerHTML = '<div class="tree-item"><span class="tree-name" style="color:var(--fg-muted)">unable to load</span></div>';
+      }
+    }
+
+    function renderTree(nodes, depth) {
+      const container = document.getElementById('workspace-tree');
+      for (const n of nodes) {
+        const div = document.createElement('div');
+        div.className = 'tree-item';
+        div.style.setProperty('--depth', depth);
+        const icon = n.type === 'dir' ? 'folder' : 'file';
+        const size = n.type === 'file' && n.size ? formatSize(n.size) : '';
+        div.innerHTML = `<span class="tree-icon ${n.type === 'dir' ? 'dir' : 'file'}">${n.type === 'dir' ? '&#128193;' : '&#128196;'}</span><span class="tree-name">${n.name}</span>${size ? `<span class="tree-size">${size}</span>` : ''}`;
+        container.appendChild(div);
+        if (n.type === 'dir' && n.children) renderTree(n.children, depth + 1);
+      }
+    }
+
+    function formatSize(b) {
+      if (b < 1024) return b + 'B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + 'K';
+      return (b / 1048576).toFixed(1) + 'M';
+    }
+
     checkModels();
-    setInterval(checkModels, 10000);
+    loadWorkspace();
+    setInterval(checkModels, 15000);
+    setInterval(loadWorkspace, 30000);
   </script>
 </body>
 </html>
