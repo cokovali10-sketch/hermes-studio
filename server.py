@@ -63,6 +63,192 @@ MAX_PROMPT_CHARS = CFG["limits"].get("max_prompt_chars", 32000)
 AGENT_SYSTEM = CFG.get("agent", {}).get("system_prompt", "You are Hermes.")
 MAX_ITERATIONS = CFG.get("agent", {}).get("max_iterations", 30)
 
+
+# ════════════════════════════════════════════════════
+# 0. SAFETY PROTOCOL — Protection Layer
+# ════════════════════════════════════════════════════
+
+# Forbidden shell commands — system destruction / data loss
+BLOCKED_SHELL_PATTERNS = [
+    r"format\s+[a-zA-Z]:",           # format C:
+    r"rd\s+/s\s+[a-zA-Z]:",          # rd /s C:
+    r"rmdir\s+/s\s+[a-zA-Z]:",       # rmdir /s C:
+    r"del\s+[/\-]+[sfqSQ]+\s+[a-zA-Z]:",  # del /sfq C:
+    r"del\s+/[sfqSQ]+\s+\S+",        # del /sfq filename
+    r"rm\s+-rf\s+/",                  # rm -rf /
+    r"rm\s+-rf\s+~",                  # rm -rf ~
+    r"rm\s+-rf\s+\*",                 # rm -rf *
+    r"mkfs\.",                         # mkfs.ext4 / mkfs.ntfs
+    r"dd\s+if=.*of=/dev/",           # dd writing to disk devices
+    r"shutdown",                       # shutdown -s -t 0
+    r"reboot",                         # reboot
+    r"bcdedit",                        # bcdedit (boot config)
+    r"diskpart",                       # diskpart (disk management)
+    r"cipher\s+/w",                    # cipher /w (secure delete)
+    r"icacls\s+[a-zA-Z]:\\\s*/grant", # icacls (permission changes on system)
+    r"takeown\s+/f\s+[a-zA-Z]:",     # takeown on drives
+    r"reg\s+delete\s+HKLM",          # deleting system registry
+    r"reg\s+delete\s+HKCU\\Software\\Microsoft\\Windows\\CurrentVersion",  # critical registry
+    r"net\s+user\s+\S+\s+/delete",   # deleting users
+    r"net\s+localgroup\s+Administrators",  # admin group changes
+    r"attrib\s+-r\s+-s\s+-h\s+[a-zA-Z]:\\",  # unhide system files
+    r"vssadmin\s+delete",             # shadow copy deletion
+    r"bcdboot",                        # bcdboot (boot repair = danger)
+    r"robocopy.*\/MIR\s+[a-zA-Z]:\\", # mirroring to root
+    r"xcopy.*\/Y\s+[a-zA-Z]:\\",     # overwriting root
+]
+
+# Forbidden file paths — system files, configs, critical data
+BLOCKED_PATHS = [
+    r"C:\\Windows",
+    r"C:\\Program Files",
+    r"C:\\Program Files \(x86\)",
+    r"C:\\Users\\[^\\]+\\AppData",
+    r"C:\\Users\\[^\\]+\\NTUSER",
+    r"C:\\Users\\[^\\]+\\.ssh",
+    r"C:\\Users\\[^\\]+\\.env",
+    r"C:\\Users\\[^\\]+\\Documents\\.*\.(key|pem|p12|pfx)",
+    r"C:\\Users\\[^\\]+\\Desktop\\.*\.(key|pem)",
+    r"D:\\.*\\.env",
+    r"D:\\.*\\.git\\config",
+    r"D:\\.*\\.ssh",
+    r"/etc/passwd",
+    r"/etc/shadow",
+    r"/root",
+    r"/boot",
+    r"/sys",
+    r"/proc",
+]
+
+# Dangerous file extensions to never write/delete
+DANGEROUS_EXTENSIONS = [
+    ".sys", ".dll", ".exe", ".msi", ".com", ".bat", ".cmd",
+    ".scr", ".pif", ".reg", ".inf", ".ini", ".drv",
+]
+
+BLOCKED_SHELL_RE = [re.compile(p, re.IGNORECASE) for p in BLOCKED_SHELL_PATTERNS]
+BLOCKED_PATH_RE = [re.compile(p, re.IGNORECASE) for p in BLOCKED_PATHS]
+
+SAFETY_VIOLATIONS = []
+
+
+class SafetyViolation(Exception):
+    def __init__(self, message, rule=""):
+        super().__init__(message)
+        self.rule = rule
+
+
+def _check_safety_shell(command: str):
+    """Validate shell command against safety rules."""
+    for pattern in BLOCKED_SHELL_RE:
+        if pattern.search(command):
+            raise SafetyViolation(
+                f"BLOCKED: Dangerous command detected: {command[:100]}",
+                rule=f"Shell blocked: {pattern.pattern}"
+            )
+
+
+def _check_safety_path(path: str, action: str = "write"):
+    """Validate file path against safety rules."""
+    check_str = path.replace("\\", "/")
+
+    for pattern in BLOCKED_PATH_RE:
+        if pattern.search(check_str):
+            raise SafetyViolation(
+                f"BLOCKED: Access to protected path denied: {path}",
+                rule=f"Path blocked: {pattern.pattern}"
+            )
+
+    ext = pathlib.Path(path).suffix.lower()
+    if ext in DANGEROUS_EXTENSIONS and action in ("write", "create", "delete"):
+        raise SafetyViolation(
+            f"BLOCKED: Cannot {action} system file: {path}",
+            rule=f"Dangerous extension: {ext}"
+        )
+
+
+def _check_safety_git(message: str):
+    """Validate git commit message."""
+    lower = message.lower()
+    dangerous = ["drop database", "delete all", "rm -rf", "format", "wipe", "destroy"]
+    for d in dangerous:
+        if d in lower:
+            raise SafetyViolation(
+                f"BLOCKED: Suspicious git commit message: {message[:100]}",
+                rule=f"Suspicious content: {d}"
+            )
+
+
+def _check_safety_python(code: str):
+    """Validate Python code for dangerous operations."""
+    dangerous = [
+        "os.system", "subprocess.call", "shutil.rmtree('/')",
+        "__import__('os')", "__import__('subprocess')",
+        "eval(", "exec(",
+        "open('/etc/", "open('C:\\\\Windows",
+        "os.remove", "os.unlink",
+    ]
+    for d in dangerous:
+        if d in code:
+            raise SafetyViolation(
+                f"BLOCKED: Dangerous Python operation: {d}",
+                rule=f"Python safety: {d}"
+            )
+
+
+def safety_check(tool_name: str, args: dict):
+    """Master safety check — called before every tool execution."""
+    try:
+        if tool_name == "execute_shell_command":
+            _check_safety_shell(args.get("command", ""))
+
+        elif tool_name == "workspace_file_ops":
+            path = args.get("path", "")
+            action = args.get("action", "")
+            if action in ("delete",):
+                _check_safety_path(path, "delete")
+            if action in ("write", "create"):
+                _check_safety_path(path, "write")
+                content = args.get("content", "")
+                if content:
+                    _check_safety_python(content)
+
+        elif tool_name == "run_python":
+            _check_safety_python(args.get("code", ""))
+
+        elif tool_name == "git_checkpoint":
+            _check_safety_git(args.get("message", ""))
+
+        elif tool_name == "kill_process":
+            name = args.get("name", "").lower()
+            protected = ["explorer", "csrss", "lsass", "svchost", "winlogon", "services", "system", "kernel"]
+            if name in protected:
+                raise SafetyViolation(
+                    f"BLOCKED: Cannot kill system process: {name}",
+                    rule="Protected process"
+                )
+
+        elif tool_name == "scaffold_project":
+            name = args.get("name", "")
+            if "/" in name or "\\" in name or name.startswith("."):
+                raise SafetyViolation(
+                    f"BLOCKED: Invalid project name: {name}",
+                    rule="Invalid name"
+                )
+
+        return True
+
+    except SafetyViolation as e:
+        SAFETY_VIOLATIONS.append({
+            "tool": tool_name,
+            "args": json.dumps(args, ensure_ascii=False)[:200],
+            "message": str(e),
+            "rule": e.rule,
+            "ts": time.time(),
+        })
+        bus.emit("safety.blocked", {"tool": tool_name, "message": str(e), "rule": e.rule})
+        raise
+
 try:
     from PIL import ImageGrab
     PILLOW_OK = True
@@ -219,6 +405,107 @@ TOOLS_SCHEMA = [
                     "summary": {"type": "string", "description": "Summary of what was built"}
                 },
                 "required": ["summary"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_python",
+            "description": "Execute a Python script directly. Use for calculations, data processing, quick utilities. Returns stdout/stderr.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "Python code to execute"},
+                    "timeout": {"type": "integer", "default": 30}
+                },
+                "required": ["code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_url",
+            "description": "Fetch content from a URL. Use for API calls, downloading docs, checking endpoints.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to fetch"},
+                    "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
+                    "body": {"type": "string", "description": "POST body (JSON string)"},
+                    "timeout": {"type": "integer", "default": 15}
+                },
+                "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "diff_apply",
+            "description": "Apply a unified diff patch to a file. Use for precise edits without rewriting entire files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File to patch"},
+                    "diff": {"type": "string", "description": "Unified diff content (--- a/... +++ b/... format)"}
+                },
+                "required": ["path", "diff"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "kill_process",
+            "description": "Kill a running process by name or PID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Process name to kill (e.g. 'node', 'python')"},
+                    "pid": {"type": "integer", "description": "Process ID to kill"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "env_info",
+            "description": "Get system environment info: OS, Python version, installed packages, disk space.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_templates",
+            "description": "List available project templates for quick scaffolding.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scaffold_project",
+            "description": "Create a new project from a template. Options: react-ts, python-fastapi, node-express, static-html.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "template": {"type": "string", "enum": ["react-ts", "python-fastapi", "node-express", "static-html", "vanilla-js"], "description": "Template to use"},
+                    "name": {"type": "string", "description": "Project name / folder name"}
+                },
+                "required": ["template", "name"]
             }
         }
     }
@@ -609,6 +896,270 @@ async def tool_search_code(pattern: str, include: str = "", path: str = ".",
         return {"error": str(e), "success": False}
 
 
+async def tool_run_python(code: str, timeout: int = 30) -> dict:
+    timeout = min(timeout, 60)
+    bus.emit("tool.python", {"code_len": len(code)})
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", code,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {"error": f"Timed out after {timeout}s", "exit_code": -1, "success": False}
+
+        return {
+            "stdout": stdout.decode("utf-8", errors="replace").strip()[-3000:],
+            "stderr": stderr.decode("utf-8", errors="replace").strip()[-1000:],
+            "exit_code": proc.returncode,
+            "success": proc.returncode == 0,
+        }
+    except Exception as e:
+        return {"error": str(e), "exit_code": -1, "success": False}
+
+
+async def tool_fetch_url(url: str, method: str = "GET", body: str = "", timeout: int = 15) -> dict:
+    import urllib.request
+    import urllib.error
+    timeout = min(timeout, 30)
+    bus.emit("tool.fetch", {"url": url[:200]})
+
+    try:
+        req_body = body.encode("utf-8") if body and method == "POST" else None
+        req = urllib.request.Request(url, data=req_body, method=method)
+        req.add_header("User-Agent", "Hermes/3.0")
+
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content = resp.read().decode("utf-8", errors="replace")
+            return {
+                "status": resp.status,
+                "headers": dict(resp.headers),
+                "body": content[-5000:],
+                "body_len": len(content),
+                "success": True,
+            }
+    except urllib.error.HTTPError as e:
+        return {"status": e.code, "error": str(e), "success": False}
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
+async def tool_diff_apply(path: str, diff: str) -> dict:
+    target = _safe_path(path)
+    if not target or not target.exists():
+        return {"error": f"File not found: {path}", "success": False}
+
+    try:
+        lines = diff.splitlines()
+        original = target.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+
+        new_lines = list(original)
+        offset = 0
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("@@"):
+                import re as _re
+                m = _re.search(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+                if m:
+                    old_start = int(m.group(1)) - 1 + offset
+                    i += 1
+                    remove_count = 0
+                    add_lines = []
+                    while i < len(lines) and not lines[i].startswith("@@") and not lines[i.startswith("diff")]:
+                        if lines[i].startswith("-"):
+                            remove_count += 1
+                        elif lines[i].startswith("+"):
+                            add_lines.append(lines[i][1:])
+                        else:
+                            remove_count += 1
+                            add_lines.append(lines[i][1:] if lines[i].startswith(" ") else lines[i])
+                        i += 1
+                    new_lines[old_start:old_start + remove_count] = [l + "\n" if not l.endswith("\n") else l for l in add_lines]
+                    offset += len(add_lines) - remove_count
+                else:
+                    i += 1
+            else:
+                i += 1
+
+        _backup_file(target)
+        target.write_text("".join(new_lines), encoding="utf-8")
+        return {"success": True, "path": path, "lines_before": len(original), "lines_after": len(new_lines)}
+    except Exception as e:
+        return {"error": f"Failed to apply diff: {e}", "success": False}
+
+
+async def tool_kill_process(name: str = "", pid: int = 0) -> dict:
+    try:
+        if pid:
+            os.kill(pid, 9)
+            return {"success": True, "killed": f"PID {pid}"}
+        if name:
+            if sys.platform == "win32":
+                proc = await asyncio.create_subprocess_shell(
+                    f'taskkill /F /IM "{name}.exe" 2>nul',
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+                return {"success": True, "killed": name}
+            else:
+                proc = await asyncio.create_subprocess_shell(
+                    f"pkill -f {name}",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+                return {"success": True, "killed": name}
+        return {"error": "Provide name or pid", "success": False}
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
+async def tool_env_info() -> dict:
+    import platform
+    try:
+        disk = shutil.disk_usage("/")
+        disk_info = {"total_gb": round(disk.total / (1024**3), 1), "free_gb": round(disk.free / (1024**3), 1)}
+    except Exception:
+        disk_info = {}
+
+    try:
+        py_packages = []
+        r = subprocess.run([sys.executable, "-m", "pip", "list", "--format=columns"],
+                         capture_output=True, text=True, timeout=10)
+        for line in r.stdout.splitlines()[2:22]:
+            parts = line.split()
+            if len(parts) >= 2:
+                py_packages.append(f"{parts[0]}=={parts[1]}")
+    except Exception:
+        py_packages = []
+
+    return {
+        "success": True,
+        "os": platform.platform(),
+        "python": platform.python_version(),
+        "machine": platform.machine(),
+        "packages": py_packages,
+        "disk": disk_info,
+        "cwd": os.getcwd(),
+    }
+
+
+# ════════════════════════════════════════════════════
+# Project Templates
+# ════════════════════════════════════════════════════
+
+TEMPLATES = {
+    "react-ts": {
+        "name": "React + TypeScript + Vite",
+        "files": {
+            "package.json": '{\n  "name": "{{name}}",\n  "private": true,\n  "version": "0.0.0",\n  "type": "module",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build",\n    "preview": "vite preview"\n  },\n  "dependencies": {\n    "react": "^18.2.0",\n    "react-dom": "^18.2.0"\n  },\n  "devDependencies": {\n    "@types/react": "^18.2.0",\n    "@types/react-dom": "^18.2.0",\n    "@vitejs/plugin-react": "^4.2.0",\n    "typescript": "^5.3.0",\n    "vite": "^5.0.0"\n  }\n}',
+            "tsconfig.json": '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "useDefineForClassFields": true,\n    "lib": ["ES2020", "DOM", "DOM.Iterable"],\n    "module": "ESNext",\n    "skipLibCheck": true,\n    "moduleResolution": "bundler",\n    "allowImportingTsExtensions": true,\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "noEmit": true,\n    "jsx": "react-jsx",\n    "strict": true\n  },\n  "include": ["src"]\n}',
+            "vite.config.ts": 'import { defineConfig } from "vite"\nimport react from "@vitejs/plugin-react"\n\nexport default defineConfig({\n  plugins: [react()],\n})',
+            "index.html": '<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>{{name}}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>',
+            "src/main.tsx": 'import React from "react"\nimport ReactDOM from "react-dom/client"\nimport App from "./App"\n\nReactDOM.createRoot(document.getElementById("root")!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>,\n)',
+            "src/App.tsx": 'export default function App() {\n  return (\n    <div style={{ padding: "2rem", fontFamily: "system-ui" }}>\n      <h1>{{name}}</h1>\n      <p>React + TypeScript is ready!</p>\n    </div>\n  )\n}',
+            "src/vite-env.d.ts": '/// <reference types="vite" />',
+        },
+        "install": "npm install",
+        "dev": "npm run dev",
+    },
+    "python-fastapi": {
+        "name": "Python FastAPI",
+        "files": {
+            "requirements.txt": "fastapi==0.108.0\nuvicorn==0.25.0\npydantic==2.5.0",
+            "main.py": 'from fastapi import FastAPI\nfrom pydantic import BaseModel\n\napp = FastAPI(title="{{name}}")\n\nclass Item(BaseModel):\n    name: str\n    price: float\n\n@app.get("/")\ndef root():\n    return {"message": "Hello from {{name}}"}\n\n@app.get("/items")\ndef list_items():\n    return [{"name": "Item 1", "price": 9.99}]\n\n@app.post("/items")\ndef create_item(item: Item):\n    return {"created": item.name, "price": item.price}\n\nif __name__ == "__main__":\n    import uvicorn\n    uvicorn.run(app, host="0.0.0.0", port=8000)',
+            "README.md": "# {{name}}\n\nFastAPI project.\n\n```bash\npip install -r requirements.txt\npython main.py\n```\n\nOpen: http://localhost:8000/docs",
+        },
+        "install": "pip install -r requirements.txt",
+        "dev": "python main.py",
+    },
+    "node-express": {
+        "name": "Node.js Express",
+        "files": {
+            "package.json": '{\n  "name": "{{name}}",\n  "version": "1.0.0",\n  "scripts": {\n    "start": "node server.js",\n    "dev": "node --watch server.js"\n  },\n  "dependencies": {\n    "express": "^4.18.0"\n  }\n}',
+            "server.js": 'const express = require("express")\nconst app = express()\nconst PORT = process.env.PORT || 3000\n\napp.use(express.json())\n\napp.get("/", (req, res) => {\n  res.json({ message: "Hello from {{name}}" })\n})\n\napp.get("/api/health", (req, res) => {\n  res.json({ status: "ok", uptime: process.uptime() })\n})\n\napp.listen(PORT, () => {\n  console.log(`Server running on http://localhost:${PORT}`)\n})',
+            "README.md": "# {{name}}\n\nExpress server.\n\n```bash\nnpm install\nnpm run dev\n```",
+        },
+        "install": "npm install",
+        "dev": "npm run dev",
+    },
+    "static-html": {
+        "name": "Static HTML/CSS/JS",
+        "files": {
+            "index.html": '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>{{name}}</title>\n  <link rel="stylesheet" href="style.css" />\n</head>\n<body>\n  <div class="container">\n    <h1>{{name}}</h1>\n    <p>Static site is ready!</p>\n  </div>\n  <script src="script.js"></script>\n</body>\n</html>',
+            "style.css": '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { font-family: system-ui; padding: 2rem; background: #0a0a0a; color: #fafafa; }\n.container { max-width: 800px; margin: 0 auto; }\nh1 { font-size: 2rem; margin-bottom: 1rem; }',
+            "script.js": 'console.log("{{name}} loaded!")',
+        },
+        "install": None,
+        "dev": None,
+    },
+    "vanilla-js": {
+        "name": "Vanilla JavaScript App",
+        "files": {
+            "package.json": '{\n  "name": "{{name}}",\n  "version": "1.0.0",\n  "scripts": {\n    "dev": "npx live-server --port=3000"\n  }\n}',
+            "index.html": '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>{{name}}</title>\n  <link rel="stylesheet" href="style.css" />\n</head>\n<body>\n  <div id="app"></div>\n  <script type="module" src="main.js"></script>\n</body>\n</html>',
+            "main.js": 'import { createApp } from "./app.js"\ndocument.getElementById("app").appendChild(createApp())',
+            "app.js": 'export function createApp() {\n  const div = document.createElement("div")\n  div.innerHTML = `<h1>{{name}}</h1><p>Vanilla JS is ready!</p>`\n  return div\n}',
+            "style.css": '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { font-family: system-ui; padding: 2rem; background: #0a0a0a; color: #fafafa; }\nh1 { font-size: 2rem; margin-bottom: 1rem; }',
+        },
+        "install": None,
+        "dev": "npx live-server --port=3000",
+    },
+}
+
+
+async def tool_list_templates() -> dict:
+    templates = []
+    for key, tpl in TEMPLATES.items():
+        templates.append({
+            "id": key,
+            "name": tpl["name"],
+            "files": list(tpl["files"].keys()),
+            "install": tpl.get("install"),
+            "dev": tpl.get("dev"),
+        })
+    return {"templates": templates, "success": True}
+
+
+async def tool_scaffold_project(template: str, name: str) -> dict:
+    if template not in TEMPLATES:
+        return {"error": f"Unknown template: {template}", "valid": list(TEMPLATES.keys()), "success": False}
+
+    tpl = TEMPLATES[template]
+    project_dir = WORKSPACE_DIR / name
+
+    if project_dir.exists():
+        return {"error": f"Directory already exists: {name}", "success": False}
+
+    project_dir.mkdir(parents=True, exist_ok=True)
+    created_files = []
+
+    for file_path, content in tpl["files"].items():
+        content = content.replace("{{name}}", name)
+        target = project_dir / file_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        created_files.append(file_path)
+
+    bus.emit("tool.scaffold", {"template": template, "name": name, "files": len(created_files)})
+
+    return {
+        "success": True,
+        "project": name,
+        "template": template,
+        "files": created_files,
+        "install": tpl.get("install"),
+        "dev": tpl.get("dev"),
+        "path": str(project_dir),
+    }
+
+
 # ════════════════════════════════════════════════════
 # 3. Tool Dispatcher
 # ════════════════════════════════════════════════════
@@ -621,6 +1172,13 @@ TOOL_MAP = {
     "capture_screenshot": tool_capture_screenshot,
     "read_image": tool_read_image,
     "search_code": tool_search_code,
+    "run_python": tool_run_python,
+    "fetch_url": tool_fetch_url,
+    "diff_apply": tool_diff_apply,
+    "kill_process": tool_kill_process,
+    "env_info": tool_env_info,
+    "list_templates": tool_list_templates,
+    "scaffold_project": tool_scaffold_project,
 }
 
 
@@ -629,6 +1187,13 @@ async def call_tool(name: str, args: dict) -> dict:
     fn = TOOL_MAP.get(name)
     if not fn:
         return {"error": f"Unknown tool: {name}", "success": False}
+
+    try:
+        safety_check(name, args)
+    except SafetyViolation as e:
+        _tool_call_count += 1
+        _tool_calls_by_name[name] = _tool_calls_by_name.get(name, 0) + 1
+        return {"error": str(e), "success": False, "safety_blocked": True, "rule": e.rule}
 
     _tool_call_count += 1
     _tool_calls_by_name[name] = _tool_calls_by_name.get(name, 0) + 1
@@ -818,19 +1383,86 @@ SYSTEM_AGENT = (
     "- capture_screenshot: take screenshots for visual analysis\n"
     "- read_image: read images from disk for vision\n"
     "- search_code: search across codebase with regex\n"
+    "- run_python: execute Python code directly\n"
+    "- fetch_url: fetch content from URLs\n"
+    "- diff_apply: apply unified diffs to files\n"
+    "- list_templates: list project templates\n"
+    "- scaffold_project: create project from template (react-ts, python-fastapi, node-express, static-html, vanilla-js)\n"
     "- done: signal task completion\n\n"
     f"Workspace: {WORKSPACE_DIR}\n"
     f"Current date: {datetime.now().strftime('%Y-%m-%d')}\n\n"
+    "═══ SAFETY PROTOCOL (MANDATORY) ═══\n"
+    "1. NEVER delete system files (C:\\Windows, /etc, /root, /boot)\n"
+    "2. NEVER format drives or wipe data\n"
+    "3. NEVER run: format, rd /s, rm -rf /, del /f, shutdown, reboot\n"
+    "4. NEVER modify system registry or boot configuration\n"
+    "5. NEVER kill system processes (explorer, csrss, lsass, svchost)\n"
+    "6. NEVER write .exe, .dll, .sys, .bat files\n"
+    "7. NEVER access .env files, .ssh keys, or credentials\n"
+    "8. If you detect a potentially dangerous request, STOP and explain why\n"
+    "9. Always use workspace for file operations — never outside it\n"
+    "10. When in doubt, ask the user before proceeding\n\n"
     "IMPORTANT: Use tools to build the project step by step. "
     "Write each file, run builds, fix errors, commit progress. "
-    "Use capture_screenshot to verify visual output. "
     "When finished, call the 'done' tool with a summary."
 )
 
 
 # ════════════════════════════════════════════════════
-# 6. Agent Loop (Tool Calling)
+# 6. Agent Loop (Tool Calling + Output Parsing)
 # ════════════════════════════════════════════════════
+
+def _parse_tool_from_text(text: str) -> list:
+    """Parse tool calls from plain text when model doesn't use function calling."""
+    calls = []
+
+    patterns = [
+        (r'```json\s*\{[^`]*?"tool"\s*:\s*"([^"]+)"[^`]*?\}\s*```', 'json_block'),
+        (r'```tool_call\s*\n(.*?)\n```', 'tool_block'),
+        (r'(?:CALL|call|Call)\s+(\w+)\(([^)]*)\)', 'func_call'),
+        (r'\[(?:TOOL|tool)\]\s*(\w+):\s*(.+)', 'bracket'),
+    ]
+
+    for pattern, fmt in patterns:
+        for m in re.finditer(pattern, text, re.DOTALL):
+            try:
+                if fmt == 'json_block':
+                    data = json.loads(m.group(0).strip('`json\n'))
+                    calls.append({"name": data.get("tool", ""), "arguments": data.get("args", data.get("arguments", {}))})
+                elif fmt == 'tool_block':
+                    lines = m.group(1).strip().splitlines()
+                    name = lines[0].strip() if lines else ""
+                    args = {}
+                    for line in lines[1:]:
+                        if ":" in line:
+                            k, v = line.split(":", 1)
+                            args[k.strip()] = v.strip().strip('"')
+                    calls.append({"name": name, "arguments": args})
+                elif fmt == 'func_call':
+                    name = m.group(1)
+                    args_str = m.group(2)
+                    args = {}
+                    for pair in args_str.split(","):
+                        if "=" in pair:
+                            k, v = pair.split("=", 1)
+                            args[k.strip()] = v.strip().strip('"').strip("'")
+                    calls.append({"name": name, "arguments": args})
+                elif fmt == 'bracket':
+                    name = m.group(1)
+                    args_str = m.group(2).strip()
+                    args = {}
+                    if args_str:
+                        for pair in args_str.split(";"):
+                            if "=" in pair:
+                                k, v = pair.split("=", 1)
+                                args[k.strip()] = v.strip().strip('"')
+                    calls.append({"name": name, "arguments": args})
+            except Exception:
+                continue
+
+    valid_tools = set(TOOL_MAP.keys())
+    return [c for c in calls if c["name"] in valid_tools]
+
 
 class AgentLoop:
     def __init__(self, task: str, model: str = None):
@@ -843,6 +1475,7 @@ class AgentLoop:
         self.steps = []
         self.done = False
         self.result_summary = ""
+        self.consecutive_no_tools = 0
 
     async def run(self, on_step=None):
         bus.emit("agent.start", {"task": self.task[:200], "model": self.model})
@@ -879,16 +1512,35 @@ class AgentLoop:
                 self.messages.append({"role": "assistant", "content": response_text})
 
             if not tool_calls:
+                parsed = _parse_tool_from_text(response_text)
+                if parsed:
+                    tool_calls = parsed
+
+            if not tool_calls:
+                self.consecutive_no_tools += 1
                 if self.done:
                     break
+                if self.consecutive_no_tools >= 3:
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "You MUST use tools. Available tools: " +
+                            ", ".join(TOOL_MAP.keys()) +
+                            "\nExample: Use workspace_file_ops to create files, execute_shell_command to run commands, done when finished."
+                        )
+                    })
+                    self.consecutive_no_tools = 0
+                    continue
                 if response_text.strip():
                     self.messages.append({
                         "role": "user",
-                        "content": "Continue. Use tools to build the project. If you're done, call the 'done' tool."
+                        "content": "Continue using tools. If done, call the done tool."
                     })
                     continue
                 else:
                     break
+
+            self.consecutive_no_tools = 0
 
             for tc in tool_calls:
                 name = tc["name"]
