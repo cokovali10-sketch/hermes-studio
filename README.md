@@ -2,7 +2,7 @@
 
 # ◆ Hermes Studio
 
-### Fully Offline AI Desktop Assistant
+### Agentic Tool Suite — Build Complete Projects with AI
 
 **No cloud. No API keys. No subscription. Just your machine.**
 
@@ -21,30 +21,40 @@
 
 ## What is this?
 
-Hermes Studio is a local AI assistant that runs **entirely on your machine**. Two lightweight models handle everything:
+Hermes Studio v3 is an **autonomous AI agent** that builds complete software projects on your disk. External or local AI is the "brain", Hermes is its "hands".
 
 | Model | Purpose | Size |
 |-------|---------|------|
 | **deepseek-r1:1.5b** | Reasoning, analysis, conversation | ~1.1 GB |
-| **qwen2.5-coder:1.5b** | Code generation, HTML/CSS/JS | ~986 MB |
+| **qwen2.5-coder:1.5b** | Code generation, HTML/CSS/JS, agent loop | ~986 MB |
 
-A **Smart Router** automatically detects what you're asking and sends it to the right model. Ask a question → deepseek-r1 answers. Ask for code → qwen2.5-coder writes it.
-
-**Total size: ~2 GB. Zero internet required after setup.**
+**Two modes:**
+- **Chat** — ask anything, get answers (like a normal AI assistant)
+- **Agent** — describe a project, Hermes builds it step by step with tools
 
 ---
 
 ## Features
 
+### Agent Toolkit (5 Tools)
+| Tool | Description |
+|------|-------------|
+| `workspace_file_ops` | Read, write, create, delete, list files with auto-backup |
+| `execute_shell_command` | Run `npm install`, `pytest`, `tsc`, etc. with timeout |
+| `git_checkpoint` | Auto-commit after each successful step |
+| `analyze_project_structure` | Scan directory tree to understand architecture |
+| `done` | Signal task completion with summary |
+
+### Core
+- **Agent Loop** — iterative tool calling with OpenAI/Ollama compatible JSON Schema
+- **Live Execution Stream** — real-time panel showing which tool is running
 - **Smart Router** — automatic prompt classification (reasoning vs coding)
 - **Streaming responses** — text appears token by token
 - **File upload** — attach images for vision analysis
-- **Voice output** — text-to-speech in Russian
-- **Agent Log** — real-time event stream (SSE)
 - **100% offline** — works without internet, no data leaves your PC
-- **D: drive storage** — models stored on D:, not filling C:
+- **D: drive storage** — models, workspace, backups on D:
 - **One-click launch** — double-click `Hermes.bat` and done
-- **Auto-cleanup** — Ollama + server stop when you close the window
+- **Glassmorphism UI** — dark theme, Linear/Vercel style
 
 ---
 
@@ -59,8 +69,6 @@ pip install -r requirements.txt
 ```
 
 ### 2. Download models
-
-Models auto-download on first run, or manually:
 
 ```bash
 ollama pull deepseek-r1:1.5b
@@ -84,35 +92,48 @@ Browser opens automatically → **http://127.0.0.1:8765**
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│                   Browser                    │
-│            (Edge / Chrome app)               │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP
-┌──────────────────▼──────────────────────────┐
-│              server.py (:8765)               │
-│  ┌─────────────┐  ┌──────────────────────┐  │
-│  │ Smart Router │  │     Event Bus (SSE)  │  │
-│  └──────┬──────┘  └──────────────────────┘  │
-│         │                                    │
-└─────────┼────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│                    Browser                       │
+│              (Edge / Chrome app)                 │
+│  ┌──────────┐  ┌────────────────────────────┐   │
+│  │  Chat UI  │  │  Live Execution Stream      │   │
+│  └──────────┘  └────────────────────────────┘   │
+└──────────────────────┬──────────────────────────┘
+                       │ HTTP
+┌──────────────────────▼──────────────────────────┐
+│               server.py (:8765)                  │
+│  ┌─────────────┐  ┌─────────────────────────┐   │
+│  │ Smart Router │  │     Event Bus (SSE)     │   │
+│  └──────┬──────┘  └─────────────────────────┘   │
+│  ┌──────▼──────┐  ┌─────────────────────────┐   │
+│  │ Agent Loop   │  │   Tool Dispatcher       │   │
+│  │ (iterative)  │  │   ├─ file_ops           │   │
+│  └──────┬──────┘  │   ├─ shell_command      │   │
+│         │         │   ├─ git_checkpoint      │   │
+│         │         │   ├─ project_analysis    │   │
+│         │         │   └─ done                │   │
+└─────────┼─────────┴─────────────────────────┘
           │ HTTP
-┌─────────▼────────────────────────────────────┐
-│           Ollama (:11434)                    │
-│  ┌──────────────┐  ┌─────────────────────┐  │
-│  │ deepseek-r1  │  │   qwen2.5-coder     │  │
-│  │  (reasoning) │  │     (coding)         │  │
-│  └──────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────┘
+┌─────────▼───────────────────────────────────────┐
+│             Ollama (:11434)                     │
+│  ┌──────────────┐  ┌─────────────────────────┐  │
+│  │ deepseek-r1  │  │   qwen2.5-coder          │  │
+│  │  (reasoning) │  │   (coding + agent)        │  │
+│  └──────────────┘  └─────────────────────────┘  │
+└─────────────────────────────────────────────────┘
 ```
 
-**How routing works:**
+**How Agent Loop works:**
 
-```python
-"Напиши HTML кнопку"  → qwen2.5-coder (code keywords detected)
-"Объясни квантовые вычисления" → deepseek-r1 (general question)
-"Напиши React компонент" → qwen2.5-coder (code keywords detected)
-"Кто ты?" → deepseek-r1 (general question)
+```
+User: "Create a React todo app with TypeScript"
+  ↓
+Agent calls: workspace_file_ops(action="write", path="package.json", content=...)
+Agent calls: workspace_file_ops(action="write", path="src/App.tsx", content=...)
+Agent calls: execute_shell_command(command="npm install")
+Agent calls: execute_shell_command(command="npm run build")
+Agent calls: git_checkpoint(message="feat: initial todo app")
+Agent calls: done(summary="React todo app created with TypeScript, Tailwind CSS")
 ```
 
 ---
@@ -122,13 +143,15 @@ Browser opens automatically → **http://127.0.0.1:8765**
 ```
 hermes-studio/
 ├── launch.py          # Single-instance launcher
-├── server.py          # Backend (aiohttp + smart router)
+├── server.py          # Backend + Agent Loop + Tool Dispatcher
 ├── setup_models.py    # Model downloader
 ├── config.json        # Configuration
 ├── requirements.txt   # Python dependencies
 ├── Hermes.bat         # One-click launcher
 ├── frontend/
-│   └── index.html     # UI (vanilla HTML/CSS/JS)
+│   └── index.html     # Glassmorphism UI + Agent Stream
+├── workspace/         # Agent builds projects here
+├── backups/           # Auto-backups before file overwrites
 └── screenshots/
     └── main.png       # App screenshot
 ```
@@ -139,12 +162,13 @@ hermes-studio/
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | HTML5 + CSS3 + Vanilla JS |
+| Frontend | HTML5 + CSS3 + Vanilla JS (Glassmorphism) |
 | Backend | Python 3.10+ / aiohttp |
 | AI Engine | Ollama (local inference) |
 | Models | DeepSeek-R1 1.5B, Qwen2.5-Coder 1.5B |
+| Agent | OpenAI/Ollama compatible Function Calling |
 | Streaming | Server-Sent Events (SSE) |
-| Storage | D: drive (models + uploads) |
+| Storage | D: drive (models + workspace + backups) |
 
 ---
 
@@ -162,11 +186,37 @@ hermes-studio/
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Frontend UI |
-| `GET` | `/api/health` | Health check |
+| `GET` | `/api/health` | Health check + version |
 | `GET` | `/api/models` | Installed models status |
+| `GET` | `/api/tools` | Tool schemas (JSON Schema) |
+| `GET` | `/api/workspace` | Workspace file tree |
 | `POST` | `/api/chat` | Chat (`?stream=1` for SSE) |
+| `POST` | `/api/agent` | Agent loop with tool calling (SSE) |
 | `POST` | `/api/upload` | File upload |
 | `GET` | `/api/events` | SSE event stream |
+
+---
+
+## Tool Schema (OpenAI Compatible)
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "workspace_file_ops",
+    "description": "Read, write, create, delete, or list files",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {"type": "string", "enum": ["read", "write", "create", "delete", "list", "list_tree"]},
+        "path": {"type": "string"},
+        "content": {"type": "string"}
+      },
+      "required": ["action", "path"]
+    }
+  }
+}
+```
 
 ---
 
@@ -178,14 +228,17 @@ Edit `config.json`:
 {
   "models": {
     "reasoning": "deepseek-r1:1.5b",
-    "coding": "qwen2.5-coder:1.5b"
+    "coding": "qwen2.5-coder:1.5b",
+    "agent": "qwen2.5-coder:1.5b"
   },
-  "server": {
-    "port": 8765
+  "server": { "port": 8765 },
+  "paths": {
+    "workspace": "D:/PortfolioProjects/Hermes/workspace",
+    "backups": "D:/PortfolioProjects/Hermes/backups"
   },
-  "ollama": {
-    "host": "http://127.0.0.1:11434",
-    "auto_start": true
+  "tools": {
+    "git_auto_commit": true,
+    "backup_on_write": true
   }
 }
 ```
