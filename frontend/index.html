@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hermes Studio — Agentic Tool Suite</title>
+  <title>Hermes Studio — Agentic Tool Suite + Vision</title>
   <link rel="icon" href="/hermes.ico" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -532,6 +532,10 @@
           <div class="model-dot" id="dot-agent"></div>
           <span class="model-name" id="name-agent">...</span>
         </div>
+        <div class="model-item">
+          <div class="model-dot" id="dot-vision"></div>
+          <span class="model-name" id="name-vision">...</span>
+        </div>
       </div>
 
       <div class="sidebar-section">
@@ -888,18 +892,20 @@
         const r = await fetch(API + '/api/models');
         const s = await r.json();
 
-        const dots = { reasoning: 'dot-reasoning', coding: 'dot-coding', agent: 'dot-agent' };
-        const names = { reasoning: 'name-reasoning', coding: 'name-coding', agent: 'name-agent' };
+        const dots = { reasoning: 'dot-reasoning', coding: 'dot-coding', agent: 'dot-agent', vision: 'dot-vision' };
+        const names = { reasoning: 'name-reasoning', coding: 'name-coding', agent: 'name-agent', vision: 'name-vision' };
 
-        for (const key of ['reasoning', 'coding', 'agent']) {
+        for (const key of ['reasoning', 'coding', 'agent', 'vision']) {
           const dot = document.getElementById(dots[key]);
           const name = document.getElementById(names[key]);
-          if (s.ollama?.available && s[key]?.installed) {
-            dot.className = 'model-dot on';
-            name.textContent = s[key].model;
-          } else {
-            dot.className = 'model-dot off';
-            name.textContent = s[key]?.model || 'offline';
+          if (dot && name) {
+            if (s.ollama?.available && s[key]?.installed) {
+              dot.className = 'model-dot on';
+              name.textContent = s[key].model;
+            } else {
+              dot.className = 'model-dot off';
+              name.textContent = s[key]?.model || 'offline';
+            }
           }
         }
 
