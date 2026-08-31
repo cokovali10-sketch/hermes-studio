@@ -1,0 +1,36 @@
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pip/
+.pip_cache/
+
+# ── Node ──
+node_modules/
+frontend/dist/
+.npm_cache/
+
+# ── Ollama models (large, not for git) ──
+.ollama/
+
+# ── Project data ──
+uploads/
+.mypy_cache/
+.pytest_cache/
+
+# ── IDE / OS ──
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ── Tauri ──
+src-tauri/target/
+
+# ── Secrets ──
+.env
+.env.local

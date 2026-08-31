@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes Studio</title>
+  <link rel="icon" href="/hermes.ico" />
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --bg-subtle: #111827;
+      --card: #1a2230;
+      --border: #2a3548;
+      --fg: #e6e8f0;
+      --muted: #7d8a9e;
+      --accent: #00d4aa;
+      --accent-hover: #00f5c4;
+      --warning: #f87171;
+      --success: #22c55e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: rgba(10, 14, 23, 0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      flex-shrink: 0;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .logo-mark {
+      width: 24px; height: 24px;
+      border-radius: 5px;
+      background: var(--bg);
+      color: var(--accent);
+      display: grid; place-items: center;
+      font-weight: bold; font-size: 0.8rem;
+    }
+
+    .models {
+      display: flex;
+      gap: 0.5rem;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .model-tag {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-family: monospace;
+      font-size: 0.6rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .model-tag .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .model-tag .dot.on { background: var(--success); box-shadow: 0 0 4px var(--success); }
+    .model-tag .dot.off { background: var(--warning); box-shadow: 0 0 4px var(--warning); }
+
+    .model-tag .label { color: var(--muted); }
+    .model-tag .name { color: var(--fg); font-weight: 500; }
+
+    .voice-btn {
+      padding: 0.3rem 0.6rem;
+      border-radius: 16px;
+      font-family: monospace;
+      font-size: 0.6rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .voice-btn:hover { background: var(--bg-subtle); }
+    .voice-btn.on { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px;
+      background: var(--bg-subtle);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-title {
+      padding: 0.6rem 0.8rem;
+      font-family: monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .events {
+      flex: 1;
+      padding: 0.5rem;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+    }
+
+    .event {
+      padding: 0.2rem 0.4rem;
+      margin-bottom: 0.2rem;
+      border-left: 2px solid var(--border);
+      word-break: break-all;
+    }
+
+    .event.route-coding { border-left-color: #60a5fa; }
+    .event.route-reasoning { border-left-color: var(--accent); }
+
+    /* ── Chat ── */
+    .chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .messages {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .msg {
+      max-width: 85%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 1rem;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+
+    .msg.ai {
+      align-self: flex-start;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    .msg .model-badge {
+      display: inline-block;
+      margin-top: 0.3rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.55rem;
+      background: var(--bg-subtle);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .msg .model-badge.coding { color: #60a5fa; border-color: #60a5fa33; }
+    .msg .model-badge.reasoning { color: var(--accent); border-color: #00d4aa33; }
+
+    .msg img {
+      max-width: 200px; max-height: 150px;
+      margin-top: 0.4rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Input ── */
+    .input-area {
+      padding: 0.6rem 1rem;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+
+    .file-btn {
+      width: 32px; height: 32px;
+      border-radius: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+      cursor: pointer; flex-shrink: 0;
+      font-size: 0.9rem;
+    }
+
+    .file-btn input { display: none; }
+
+    textarea {
+      flex: 1;
+      background: transparent;
+      border: none; outline: none;
+      resize: none;
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: var(--fg);
+      padding: 0.4rem;
+      min-height: 2rem;
+      max-height: 100px;
+      line-height: 1.4;
+    }
+
+    textarea::placeholder { color: var(--muted); }
+
+    .send-btn {
+      width: 32px; height: 32px;
+      border-radius: 20px;
+      background: var(--accent);
+      color: #000;
+      font-family: monospace;
+      font-weight: bold; font-size: 0.8rem;
+      display: grid; place-items: center;
+      cursor: pointer; flex-shrink: 0;
+      border: none;
+    }
+
+    .send-btn:hover { background: var(--accent-hover); }
+
+    .stop-btn {
+      width: 32px; height: 32px;
+      border-radius: 20px;
+      background: var(--warning);
+      color: #fff;
+      font-size: 0.7rem;
+      display: none; place-items: center;
+      cursor: pointer; flex-shrink: 0;
+      border: none;
+    }
+
+    .stop-btn.visible { display: grid; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header">
+      <div class="logo">
+        <div class="logo-mark">H</div>
+        <span>HERMES STUDIO</span>
+      </div>
+
+      <div class="models">
+        <div class="model-tag">
+          <div class="dot" id="dot-reasoning"></div>
+          <span class="label">Logic:</span>
+          <span class="name" id="name-reasoning">...</span>
+        </div>
+        <div class="model-tag">
+          <div class="dot" id="dot-coding"></div>
+          <span class="label">Code:</span>
+          <span class="name" id="name-coding">...</span>
+        </div>
+      </div>
+
+      <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">off</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="chat">
+      <div class="messages" id="messages"></div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="sidebar-title">Agent Log</div>
+      <div class="events" id="events-log"></div>
+    </aside>
+  </main>
+
+  <div class="input-area">
+    <label class="file-btn">
+      <input type="file" id="file-input" accept="image/*,.txt,.md,.json" onchange="handleFile(event)"/>
+      +
+    </label>
+    <textarea id="input" placeholder="Message Hermes...  Enter = send" onkeydown="handleKey(event)"></textarea>
+    <button class="send-btn" id="send-btn" onclick="send()">&#8593;</button>
+    <button class="stop-btn" id="stop-btn" onclick="stop()">x</button>
+  </div>
+
+  <script>
+    const API = 'http://127.0.0.1:8765';
+    const evtSource = new EventSource(API + '/api/events');
+
+    let messages = [];
+    let pendingFile = null;
+    let pendingB64 = null;
+    let isStreaming = false;
+    let abortCtrl = null;
+    let voiceOn = false;
+    let activeRoute = '';
+
+    const $msgs = document.getElementById('messages');
+    const $evts = document.getElementById('events-log');
+    const $input = document.getElementById('input');
+    const $sendBtn = document.getElementById('send-btn');
+    const $stopBtn = document.getElementById('stop-btn');
+    const $voiceBtn = document.getElementById('voice-btn');
+
+    // ── Initial greeting ──
+    messages.push({
+      role: 'assistant',
+      text: 'Привет! Я Hermes Studio — локальный ИИ без облаков.\nЗадай вопрос, кинь скрин + или скажи "напиши сайт".',
+      route: 'reasoning'
+    });
+    render();
+
+    // ── Render ──
+    function render() {
+      $msgs.innerHTML = messages.map((m, i) => {
+        const cls = m.role === 'user' ? 'msg user' : 'msg ai';
+        let badge = '';
+        if (m.role === 'assistant' && m.route) {
+          badge = `<div class="model-badge ${m.route}">${m.route === 'coding' ? 'qwen2.5-coder' : 'deepseek-r1'}</div>`;
+        }
+        let img = '';
+        if (m.img) {
+          img = `<img src="${m.img}"/>`;
+        }
+        return `<div class="${cls}" style="animation:fadeIn .3s ease ${i * 0.03}s both">${escapeHtml(m.text)}${badge}${img}</div>`;
+      }).join('');
+      $msgs.scrollTop = $msgs.scrollHeight;
+    }
+
+    function escapeHtml(t) {
+      return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ── File ──
+    function handleFile(e) {
+      const f = e.target.files[0];
+      if (!f) return;
+      pendingFile = f;
+      if (f.type.startsWith('image/')) {
+        const r = new FileReader();
+        r.onload = () => { pendingB64 = r.result.split(',')[1]; };
+        r.readAsDataURL(f);
+      }
+    }
+
+    // ── Voice ──
+    function toggleVoice() {
+      voiceOn = !voiceOn;
+      $voiceBtn.textContent = voiceOn ? 'on' : 'off';
+      $voiceBtn.classList.toggle('on', voiceOn);
+      if (!voiceOn) speechSynthesis.cancel();
+    }
+
+    // ── Keys ──
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    }
+
+    // ── Send ──
+    async function send() {
+      const prompt = $input.value.trim();
+      if ((!prompt && !pendingFile) || isStreaming) return;
+
+      const imgB64 = pendingB64;
+      const file = pendingFile;
+      pendingFile = null;
+      pendingB64 = null;
+      $input.value = '';
+
+      messages.push({ role: 'user', text: prompt || '[file]', img: imgB64 ? 'data:image/png;base64,' + imgB64 : undefined });
+      messages.push({ role: 'assistant', text: '', route: '' });
+      render();
+
+      isStreaming = true;
+      abortCtrl = new AbortController();
+      $sendBtn.style.display = 'none';
+      $stopBtn.classList.add('visible');
+
+      const history = messages.slice(0, -2).slice(-8).map(m => ({ role: m.role, content: m.text }));
+      const body = { prompt, history, stream: true };
+      if (imgB64) body.images = [imgB64];
+
+      try {
+        const r = await fetch(API + '/api/chat?stream=1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: abortCtrl.signal,
+        });
+
+        if (!r.ok || !r.body) throw new Error('Stream failed');
+
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+
+          const parts = buf.split('\n\n');
+          buf = parts.pop();
+
+          for (const p of parts) {
+            if (!p.startsWith('data: ')) continue;
+            try {
+              const j = JSON.parse(p.slice(6));
+              if (j.model) {
+                activeRoute = j.route || '';
+              }
+              if (j.done) {
+                break;
+              }
+              if (j.text) {
+                messages[messages.length - 1].text += j.text;
+                messages[messages.length - 1].route = activeRoute;
+                render();
+              }
+            } catch {}
+          }
+        }
+
+        // Voice
+        if (voiceOn && messages[messages.length - 1].text) {
+          const u = new SpeechSynthesisUtterance(messages[messages.length - 1].text.slice(0, 200));
+          u.lang = 'ru-RU';
+          speechSynthesis.speak(u);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          messages[messages.length - 1].text += ' [stopped]';
+        } else {
+          // Fallback to non-streaming
+          try {
+            const r = await fetch(API + '/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt, history }),
+            });
+            const j = await r.json();
+            messages[messages.length - 1].text = j.text || 'Error';
+            messages[messages.length - 1].route = j.route || '';
+          } catch {
+            messages[messages.length - 1].text = 'Connection error. Is the server running?';
+          }
+        }
+      }
+
+      isStreaming = false;
+      abortCtrl = null;
+      $sendBtn.style.display = '';
+      $stopBtn.classList.remove('visible');
+      render();
+    }
+
+    function stop() {
+      if (abortCtrl) abortCtrl.abort();
+      isStreaming = false;
+    }
+
+    // ── SSE events ──
+    evtSource.onmessage = (e) => {
+      try {
+        const m = JSON.parse(e.data);
+        const div = document.createElement('div');
+        div.className = 'event';
+        if (m.event && m.event.includes('coding')) div.classList.add('route-coding');
+        if (m.event && m.event.includes('reasoning')) div.classList.add('route-reasoning');
+        const payload = m.payload ? JSON.stringify(m.payload).slice(0, 80) : '';
+        div.textContent = `[${m.event}] ${payload}`;
+        $evts.insertBefore(div, $evts.firstChild);
+      } catch {}
+    };
+
+    // ── Model status polling ──
+    async function checkModels() {
+      try {
+        const r = await fetch(API + '/api/models');
+        const s = await r.json();
+
+        const rDot = document.getElementById('dot-reasoning');
+        const cDot = document.getElementById('dot-coding');
+        const rName = document.getElementById('name-reasoning');
+        const cName = document.getElementById('name-coding');
+
+        if (s.ollama.available) {
+          rDot.className = 'dot ' + (s.reasoning.installed ? 'on' : 'off');
+          cDot.className = 'dot ' + (s.coding.installed ? 'on' : 'off');
+          rName.textContent = s.reasoning.model;
+          cName.textContent = s.coding.model;
+        } else {
+          rDot.className = 'dot off';
+          cDot.className = 'dot off';
+          rName.textContent = 'offline';
+          cName.textContent = 'offline';
+        }
+      } catch {
+        document.getElementById('dot-reasoning').className = 'dot off';
+        document.getElementById('dot-coding').className = 'dot off';
+        document.getElementById('name-reasoning').textContent = 'offline';
+        document.getElementById('name-coding').textContent = 'offline';
+      }
+    }
+
+    checkModels();
+    setInterval(checkModels, 10000);
+  </script>
+</body>
+</html>

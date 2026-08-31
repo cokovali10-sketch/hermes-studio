@@ -1,0 +1,22 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765
+  },
+  "models": {
+    "reasoning": "deepseek-r1:1.5b",
+    "coding": "qwen2.5-coder:1.5b",
+    "fallback": "deepseek-r1:1.5b"
+  },
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "auto_start": true
+  },
+  "paths": {
+    "uploads": "D:/PortfolioProjects/Hermes/uploads"
+  },
+  "limits": {
+    "max_upload_mb": 10,
+    "max_prompt_chars": 8000
+  }
+}
