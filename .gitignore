@@ -16,6 +16,8 @@ frontend/dist/
 
 # ── Project data ──
 uploads/
+backups/
+workspace/
 .mypy_cache/
 .pytest_cache/
 
@@ -27,6 +29,22 @@ uploads/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ── PyCharm ──
+PyCharmconfig/
+PyCharmsystem/
+
+# ── Config (local) ──
+config/hardware.json
+config/settings.schema.json
+config/hermes.settings.json
+
+# ── Other ──
+merges/
+public/
+scripts/
+test_server.py
+*.glb
 
 # ── Tauri ──
 src-tauri/target/
