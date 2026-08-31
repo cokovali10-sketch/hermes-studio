@@ -2,7 +2,7 @@
 
 # ◆ Hermes Studio
 
-### Agentic Tool Suite — Build Complete Projects with AI
+### Hermes Studio — Agentic Tool Suite with Vision
 
 **No cloud. No API keys. No subscription. Just your machine.**
 
@@ -27,6 +27,7 @@ Hermes Studio v3 is an **autonomous AI agent** that builds complete software pro
 |-------|---------|------|
 | **deepseek-r1:1.5b** | Reasoning, analysis, conversation | ~1.1 GB |
 | **qwen2.5-coder:1.5b** | Code generation, HTML/CSS/JS, agent loop | ~986 MB |
+| **llava:1.6-mistral** | Vision — analyze screenshots, images, UI | ~4.1 GB |
 
 **Two modes:**
 - **Chat** — ask anything, get answers (like a normal AI assistant)
@@ -36,19 +37,25 @@ Hermes Studio v3 is an **autonomous AI agent** that builds complete software pro
 
 ## Features
 
-### Agent Toolkit (5 Tools)
+### Agent Toolkit (8 Tools)
 | Tool | Description |
 |------|-------------|
-| `workspace_file_ops` | Read, write, create, delete, list files with auto-backup |
+| `workspace_file_ops` | Read, write, create, delete, list, grep, search_replace, read_lines |
 | `execute_shell_command` | Run `npm install`, `pytest`, `tsc`, etc. with timeout |
 | `git_checkpoint` | Auto-commit after each successful step |
 | `analyze_project_structure` | Scan directory tree to understand architecture |
+| `capture_screenshot` | Take screenshots of screen/window for visual analysis |
+| `read_image` | Read images from disk for vision model analysis |
+| `search_code` | Regex search across codebase with context lines |
 | `done` | Signal task completion with summary |
 
 ### Core
 - **Agent Loop** — iterative tool calling with OpenAI/Ollama compatible JSON Schema
 - **Live Execution Stream** — real-time panel showing which tool is running
-- **Smart Router** — automatic prompt classification (reasoning vs coding)
+- **Smart Router** — automatic prompt classification (reasoning vs coding vs vision)
+- **Vision Support** — analyze screenshots, images, UI elements with llava model
+- **Screenshot Capture** — take screenshots directly from the agent
+- **Code Search** — regex search across codebase with context
 - **Streaming responses** — text appears token by token
 - **File upload** — attach images for vision analysis
 - **100% offline** — works without internet, no data leaves your PC
@@ -192,6 +199,7 @@ hermes-studio/
 | `GET` | `/api/workspace` | Workspace file tree |
 | `POST` | `/api/chat` | Chat (`?stream=1` for SSE) |
 | `POST` | `/api/agent` | Agent loop with tool calling (SSE) |
+| `POST` | `/api/analyze_image` | Vision analysis of uploaded image |
 | `POST` | `/api/upload` | File upload |
 | `GET` | `/api/events` | SSE event stream |
 
