@@ -1902,6 +1902,92 @@ async def events_handler(request):
 
 
 # ════════════════════════════════════════════════════
+# 9.5 Plugin System — Custom Tools from Python Files
+# ════════════════════════════════════════════════════
+
+PLUGINS_DIR = ROOT / "plugins"
+PLUGINS_DIR.mkdir(exist_ok=True)
+
+_loaded_plugins = {}
+
+
+def _load_plugins():
+    """Scan plugins/ directory for Python files with tool definitions."""
+    for py_file in PLUGINS_DIR.glob("*.py"):
+        if py_file.name.startswith("_"):
+            continue
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(f"hermes_plugin_{py_file.stem}", str(py_file))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            if hasattr(mod, "HERMES_TOOLS"):
+                for tool_def in mod.HERMES_TOOLS:
+                    name = tool_def["name"]
+                    func = tool_def["function"]
+                    schema = tool_def["schema"]
+                    TOOLS_SCHEMA.append({
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": schema.get("description", ""),
+                            "parameters": schema.get("parameters", {"type": "object", "properties": {}}),
+                        }
+                    })
+                    TOOL_MAP[name] = func
+                    _loaded_plugins[name] = {"file": py_file.name, "schema": schema}
+                    print(f"  [Plugin] Loaded: {name} from {py_file.name}")
+
+            if hasattr(mod, "HERMES_INIT"):
+                mod.HERMES_INIT()
+
+        except Exception as e:
+            print(f"  [Plugin] Failed to load {py_file.name}: {e}")
+
+
+def _reload_plugins():
+    """Reload all plugins."""
+    global _loaded_plugins
+    _loaded_plugins = {}
+    to_remove = [k for k in TOOL_MAP if k not in [
+        "workspace_file_ops", "execute_shell_command", "git_checkpoint",
+        "analyze_project_structure", "capture_screenshot", "read_image",
+        "search_code", "run_python", "fetch_url", "diff_apply",
+        "kill_process", "env_info", "list_templates", "scaffold_project",
+        "done",
+    ]]
+    for k in to_remove:
+        del TOOL_MAP[k]
+    for t in TOOLS_SCHEMA[:]:
+        if t["function"]["name"] in to_remove:
+            TOOLS_SCHEMA.remove(t)
+    _load_plugins()
+
+
+async def plugins_handler(request):
+    """List loaded plugins."""
+    return web.json_response({
+        "plugins": _loaded_plugins,
+        "total": len(_loaded_plugins),
+        "directory": str(PLUGINS_DIR),
+    })
+
+
+async def reload_plugins_handler(request):
+    """Reload all plugins."""
+    try:
+        _reload_plugins()
+        return web.json_response({
+            "success": True,
+            "plugins": _loaded_plugins,
+            "total_tools": len(TOOL_MAP),
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e), "success": False}, status=500)
+
+
+# ════════════════════════════════════════════════════
 # 10. Stats Dashboard
 # ════════════════════════════════════════════════════
 
@@ -1971,6 +2057,8 @@ routes = [
     web.get("/api/tools", tools_handler),
     web.get("/api/stats", stats_handler),
     web.get("/api/workspace", workspace_handler),
+    web.get("/api/plugins", plugins_handler),
+    web.post("/api/plugins/reload", reload_plugins_handler),
     web.post("/api/chat", chat_handler),
     web.post("/api/agent", agent_handler),
     web.post("/api/analyze_image", analyze_image_handler),
@@ -1985,7 +2073,7 @@ if UPLOAD_DIR.exists():
 
 
 async def on_startup(app):
-    bus.emit("system.started", {"time": time.time(), "version": "3.2-stats"})
+    bus.emit("system.started", {"time": time.time(), "version": "4.0"})
 
     ollama_ok = await ensure_ollama()
     models = await ollama.list_models() if ollama_ok else []
@@ -2000,7 +2088,7 @@ async def on_startup(app):
     })
 
     print()
-    print(f"  Hermes Studio v3.2 — Agentic Tool Suite + Stats")
+    print(f"  Hermes Studio v4.0 — Agentic Tool Suite")
     print(f"  http://127.0.0.1:{PORT}")
     print(f"  Ollama:      {'ON' if ollama_ok else 'OFF'}")
     print(f"  Reasoning:   {MODEL_REASONING} {'ready' if reasoning_ok else 'NOT INSTALLED'}")
@@ -2009,6 +2097,10 @@ async def on_startup(app):
     print(f"  Vision:      {MODEL_VISION} {'ready' if vision_ok else 'NOT INSTALLED'}")
     print(f"  Pillow:      {'YES' if PILLOW_OK else 'NO (pip install Pillow)'}")
     print(f"  Workspace:   {WORKSPACE_DIR}")
+    print(f"  Safety:      ACTIVE (30+ rules)")
+    print(f"  Plugins:     {PLUGINS_DIR}")
+
+    _load_plugins()
     print(f"  Tools:       {len(TOOLS_SCHEMA)} available")
     if not reasoning_ok or not coding_ok:
         print()
