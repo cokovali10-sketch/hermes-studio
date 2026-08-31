@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
 """
-Hermes Studio v3 — Agentic Tool Suite (100% offline).
-
-An autonomous AI agent that builds complete software projects.
-External/local AI is the "brain", Hermes is its "hands" on disk.
+Hermes Studio v3.1 — Agentic Tool Suite with Vision (100% offline).
 
 Tools (OpenAI/Ollama function-calling compatible):
-  workspace_file_ops      — read, write, create files with backup
+  workspace_file_ops      — read, write, create, delete, list, diff, search_replace, grep
   execute_shell_command   — run shell commands with timeout
   git_checkpoint          — auto-commit after each step
   analyze_project_structure — scan directory tree
+  capture_screenshot      — take screenshot of screen/window
+  read_image              — read image for vision analysis
+  search_code             — search across codebase with regex
+  done                    — signal task completion
 
 Endpoints:
-  GET  /api/health        — health check
-  GET  /api/models        — installed models status
-  POST /api/chat          — chat (?stream=1 for SSE)
-  POST /api/agent         — run agent loop with tool calling
-  POST /api/upload        — file upload
-  GET  /api/events        — SSE event stream
-  GET  /api/tools         — list available tools + schemas
-  GET  /api/workspace     — workspace file tree
+  GET  /api/health, /api/models, /api/tools, /api/workspace
+  POST /api/chat, /api/agent, /api/upload
+  POST /api/analyze_image  — vision analysis of uploaded image
+  GET  /api/events         — SSE event stream
 """
 import asyncio
+import base64
+import io
 import json
 import os
 import pathlib
@@ -48,6 +47,7 @@ OLLAMA_MODELS = str(OLLAMA_DIR / "models")
 MODEL_REASONING = CFG["models"]["reasoning"]
 MODEL_CODING = CFG["models"]["coding"]
 MODEL_AGENT = CFG["models"].get("agent", MODEL_CODING)
+MODEL_VISION = CFG["models"].get("vision", "llava:1.6-mistral")
 UPLOAD_DIR = pathlib.Path(CFG["paths"]["uploads"])
 WORKSPACE_DIR = pathlib.Path(CFG["paths"]["workspace"])
 BACKUP_DIR = pathlib.Path(CFG["paths"]["backups"])
@@ -63,6 +63,13 @@ MAX_PROMPT_CHARS = CFG["limits"].get("max_prompt_chars", 32000)
 AGENT_SYSTEM = CFG.get("agent", {}).get("system_prompt", "You are Hermes.")
 MAX_ITERATIONS = CFG.get("agent", {}).get("max_iterations", 30)
 
+try:
+    from PIL import ImageGrab
+    PILLOW_OK = True
+except ImportError:
+    PILLOW_OK = False
+    print("[Hermes] Pillow not installed — screenshot tools disabled. pip install Pillow")
+
 
 # ════════════════════════════════════════════════════
 # 1. Tool Definitions (OpenAI/Ollama JSON Schema)
@@ -73,29 +80,24 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "workspace_file_ops",
-            "description": "Read, write, create, delete, or list files in the workspace. Use 'action' to specify: read, write, create, delete, list, list_tree. For write/create, provide 'content'.",
+            "description": "File operations in workspace. Actions: read, write, create, delete, list, list_tree, read_lines, search_replace, grep. For write/create provide 'content'. For search_replace provide 'old_text' and 'new_text'. For grep provide 'pattern'.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["read", "write", "create", "delete", "list", "list_tree"],
+                        "enum": ["read", "write", "create", "delete", "list", "list_tree", "read_lines", "search_replace", "grep"],
                         "description": "File operation to perform"
                     },
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path from workspace root (e.g. 'src/App.tsx')"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "File content for write/create actions"
-                    },
-                    "encoding": {
-                        "type": "string",
-                        "enum": ["utf-8", "latin-1"],
-                        "default": "utf-8",
-                        "description": "File encoding"
-                    }
+                    "path": {"type": "string", "description": "Relative path from workspace root"},
+                    "content": {"type": "string", "description": "File content for write/create"},
+                    "old_text": {"type": "string", "description": "Text to find for search_replace"},
+                    "new_text": {"type": "string", "description": "Replacement text for search_replace"},
+                    "pattern": {"type": "string", "description": "Regex pattern for grep"},
+                    "start_line": {"type": "integer", "description": "Start line for read_lines (1-indexed)"},
+                    "end_line": {"type": "integer", "description": "End line for read_lines (inclusive)"},
+                    "include": {"type": "string", "description": "File glob for grep (e.g. '*.py')"},
+                    "max_results": {"type": "integer", "default": 30, "description": "Max grep results"}
                 },
                 "required": ["action", "path"]
             }
@@ -105,23 +107,13 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "execute_shell_command",
-            "description": "Execute a shell command in the workspace directory. Use for: npm install, npm run build, pip install, pytest, tsc, etc. Returns stdout, stderr, and exit code.",
+            "description": "Execute a shell command in the workspace. Returns stdout, stderr, exit_code.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "Shell command to execute (e.g. 'npm install', 'python -m pytest')"
-                    },
-                    "timeout": {
-                        "type": "integer",
-                        "default": 120,
-                        "description": "Timeout in seconds"
-                    },
-                    "cwd": {
-                        "type": "string",
-                        "description": "Working directory relative to workspace (default: workspace root)"
-                    }
+                    "command": {"type": "string", "description": "Command to run"},
+                    "timeout": {"type": "integer", "default": 120},
+                    "cwd": {"type": "string", "description": "Working dir relative to workspace"}
                 },
                 "required": ["command"]
             }
@@ -131,19 +123,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "git_checkpoint",
-            "description": "Create a git checkpoint (commit) in the workspace. Use after completing a meaningful step.",
+            "description": "Create a git commit in workspace.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "Commit message describing what was done"
-                    },
-                    "add_all": {
-                        "type": "boolean",
-                        "default": True,
-                        "description": "Stage all changes before commit"
-                    }
+                    "message": {"type": "string", "description": "Commit message"},
+                    "add_all": {"type": "boolean", "default": True}
                 },
                 "required": ["message"]
             }
@@ -153,25 +138,35 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "analyze_project_structure",
-            "description": "Scan workspace directory tree and return file structure with sizes. Use to understand current project state.",
+            "description": "Scan workspace directory tree with file sizes.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {
+                    "path": {"type": "string", "default": "."},
+                    "max_depth": {"type": "integer", "default": 4},
+                    "ignore": {"type": "array", "items": {"type": "string"}, "default": ["node_modules", ".git", "__pycache__", "dist", "build", ".next", "venv"]}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "capture_screenshot",
+            "description": "Capture a screenshot of the entire screen or a specific window. Returns base64 image.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {
                         "type": "string",
-                        "default": ".",
-                        "description": "Relative path to scan from workspace root"
+                        "enum": ["fullscreen", "active_window", "region"],
+                        "default": "fullscreen",
+                        "description": "What to capture"
                     },
-                    "max_depth": {
-                        "type": "integer",
-                        "default": 4,
-                        "description": "Maximum directory depth to scan"
-                    },
-                    "ignore": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "default": ["node_modules", ".git", "__pycache__", "dist", "build", ".next"],
-                        "description": "Directories to ignore"
+                    "save_path": {
+                        "type": "string",
+                        "description": "Optional: save screenshot to workspace path (e.g. 'screenshots/shot1.png')"
                     }
                 },
                 "required": []
@@ -181,15 +176,47 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "done",
-            "description": "Signal that the task is complete. Provide a summary of what was built.",
+            "name": "read_image",
+            "description": "Read an image file from disk and return it as base64 for vision analysis. Supports png, jpg, jpeg, gif, webp, bmp.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "summary": {
+                    "path": {
                         "type": "string",
-                        "description": "Summary of what was accomplished"
+                        "description": "Path to image (relative to workspace or absolute)"
                     }
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_code",
+            "description": "Search across the codebase for a pattern. Returns matching files and lines with context.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "string", "description": "Regex pattern to search for"},
+                    "include": {"type": "string", "description": "File glob filter (e.g. '*.py', '*.ts,*.tsx')"},
+                    "path": {"type": "string", "default": ".", "description": "Relative path to search in"},
+                    "max_results": {"type": "integer", "default": 50},
+                    "context_lines": {"type": "integer", "default": 2, "description": "Lines of context around matches"}
+                },
+                "required": ["pattern"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "done",
+            "description": "Signal task completion.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Summary of what was built"}
                 },
                 "required": ["summary"]
             }
@@ -203,8 +230,14 @@ TOOLS_SCHEMA = [
 # ════════════════════════════════════════════════════
 
 def _safe_path(rel: str) -> pathlib.Path | None:
-    """Resolve relative path safely within workspace."""
-    if not rel or rel.startswith("..") or rel.startswith("/"):
+    if not rel:
+        return None
+    if rel.startswith("/") or rel.startswith("\\"):
+        p = pathlib.Path(rel)
+        if p.exists():
+            return p
+        return None
+    if ".." in rel:
         return None
     resolved = (WORKSPACE_DIR / rel).resolve()
     if not str(resolved).startswith(str(WORKSPACE_DIR.resolve())):
@@ -213,72 +246,15 @@ def _safe_path(rel: str) -> pathlib.Path | None:
 
 
 def _backup_file(target: pathlib.Path):
-    """Create backup before overwriting."""
     if target.exists() and CFG["tools"].get("backup_on_write", True):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        rel = target.relative_to(WORKSPACE_DIR)
+        try:
+            rel = target.relative_to(WORKSPACE_DIR)
+        except ValueError:
+            rel = pathlib.Path(target.name)
         bak = BACKUP_DIR / f"{ts}_{rel.parent}" / f"{target.name}"
         bak.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(target, bak)
-
-
-async def tool_workspace_file_ops(action: str, path: str, content: str = "", encoding: str = "utf-8") -> dict:
-    target = _safe_path(path)
-    if target is None:
-        return {"error": f"Invalid path: {path}", "success": False}
-
-    try:
-        if action == "read":
-            if not target.exists():
-                return {"error": f"File not found: {path}", "success": False}
-            data = target.read_text(encoding=encoding, errors="replace")
-            return {"content": data, "size": len(data), "success": True}
-
-        elif action == "write":
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _backup_file(target)
-            target.write_text(content, encoding=encoding)
-            return {"success": True, "path": str(target.relative_to(WORKSPACE_DIR)), "size": len(content)}
-
-        elif action == "create":
-            if target.exists():
-                return {"error": f"File already exists: {path}. Use 'write' to overwrite.", "success": False}
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding=encoding)
-            return {"success": True, "path": str(target.relative_to(WORKSPACE_DIR)), "size": len(content)}
-
-        elif action == "delete":
-            if not target.exists():
-                return {"error": f"File not found: {path}", "success": False}
-            if target.is_dir():
-                shutil.rmtree(target)
-                return {"success": True, "deleted": "directory"}
-            _backup_file(target)
-            target.unlink()
-            return {"success": True, "deleted": "file"}
-
-        elif action == "list":
-            if not target.exists():
-                return {"error": f"Directory not found: {path}", "success": False}
-            if target.is_file():
-                return {"files": [target.name], "success": True}
-            entries = []
-            for e in sorted(target.iterdir()):
-                kind = "dir" if e.is_dir() else "file"
-                size = e.stat().st_size if e.is_file() else 0
-                entries.append({"name": e.name, "type": kind, "size": size})
-            return {"files": entries, "success": True}
-
-        elif action == "list_tree":
-            if not target.exists():
-                return {"error": f"Directory not found: {path}", "success": False}
-            tree = _build_tree(target, max_depth=4)
-            return {"tree": tree, "success": True}
-
-        return {"error": f"Unknown action: {action}", "success": False}
-
-    except Exception as e:
-        return {"error": str(e), "success": False}
 
 
 def _build_tree(path: pathlib.Path, max_depth: int = 4, ignore: set = None) -> list:
@@ -300,13 +276,140 @@ def _build_tree(path: pathlib.Path, max_depth: int = 4, ignore: set = None) -> l
     return result
 
 
+async def tool_workspace_file_ops(action: str, path: str, content: str = "",
+                                   old_text: str = "", new_text: str = "",
+                                   pattern: str = "", start_line: int = 0,
+                                   end_line: int = 0, include: str = "",
+                                   max_results: int = 30) -> dict:
+    target = _safe_path(path)
+    if target is None and action not in ("list", "list_tree", "grep"):
+        return {"error": f"Invalid path: {path}", "success": False}
+
+    try:
+        if action == "read":
+            if not target.exists():
+                return {"error": f"File not found: {path}", "success": False}
+            data = target.read_text(encoding="utf-8", errors="replace")
+            lines = data.count("\n") + 1
+            return {"content": data, "size": len(data), "lines": lines, "success": True}
+
+        elif action == "read_lines":
+            if not target.exists():
+                return {"error": f"File not found: {path}", "success": False}
+            all_lines = target.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+            s = max(0, (start_line or 1) - 1)
+            e = min(len(all_lines), end_line or len(all_lines))
+            selected = "".join(all_lines[s:e])
+            return {"content": selected, "total_lines": len(all_lines), "from": s + 1, "to": e, "success": True}
+
+        elif action == "write":
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _backup_file(target)
+            target.write_text(content, encoding="utf-8")
+            lines = content.count("\n") + 1
+            return {"success": True, "path": str(target.relative_to(WORKSPACE_DIR)), "size": len(content), "lines": lines}
+
+        elif action == "create":
+            if target.exists():
+                return {"error": f"Already exists: {path}. Use 'write' to overwrite.", "success": False}
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            return {"success": True, "path": str(target.relative_to(WORKSPACE_DIR)), "size": len(content)}
+
+        elif action == "delete":
+            if not target.exists():
+                return {"error": f"Not found: {path}", "success": False}
+            if target.is_dir():
+                shutil.rmtree(target)
+                return {"success": True, "deleted": "directory"}
+            _backup_file(target)
+            target.unlink()
+            return {"success": True, "deleted": "file"}
+
+        elif action == "list":
+            if not target.exists():
+                return {"error": f"Not found: {path}", "success": False}
+            if target.is_file():
+                return {"files": [{"name": target.name, "type": "file", "size": target.stat().st_size}], "success": True}
+            entries = []
+            for e in sorted(target.iterdir()):
+                kind = "dir" if e.is_dir() else "file"
+                size = e.stat().st_size if e.is_file() else 0
+                entries.append({"name": e.name, "type": kind, "size": size})
+            return {"files": entries, "count": len(entries), "success": True}
+
+        elif action == "list_tree":
+            scan = target if target and target.exists() else WORKSPACE_DIR
+            tree = _build_tree(scan, max_depth=4)
+            return {"tree": tree, "success": True}
+
+        elif action == "search_replace":
+            if not target.exists():
+                return {"error": f"Not found: {path}", "success": False}
+            if not old_text:
+                return {"error": "old_text is required", "success": False}
+            data = target.read_text(encoding="utf-8", errors="replace")
+            count = data.count(old_text)
+            if count == 0:
+                return {"error": f"old_text not found in {path}", "success": False, "occurrences": 0}
+            _backup_file(target)
+            new_data = data.replace(old_text, new_text, 1)
+            target.write_text(new_data, encoding="utf-8")
+            return {"success": True, "replaced": 1, "remaining_occurrences": new_data.count(old_text), "path": path}
+
+        elif action == "grep":
+            search_dir = WORKSPACE_DIR
+            if target and target.exists() and target.is_dir():
+                search_dir = target
+            if not pattern:
+                return {"error": "pattern is required for grep", "success": False}
+
+            regex = re.compile(pattern, re.IGNORECASE)
+            glob_filter = include or "*"
+            results = []
+            total_matches = 0
+
+            for fpath in search_dir.rglob(glob_filter):
+                if not fpath.is_file():
+                    continue
+                if any(skip in fpath.parts for skip in ["node_modules", ".git", "__pycache__", "dist", "build", "venv"]):
+                    continue
+                try:
+                    lines = fpath.read_text(encoding="utf-8", errors="replace").splitlines()
+                except Exception:
+                    continue
+                for i, line in enumerate(lines):
+                    if regex.search(line):
+                        total_matches += 1
+                        if total_matches > max_results:
+                            break
+                        try:
+                            rel = fpath.relative_to(WORKSPACE_DIR)
+                        except ValueError:
+                            rel = fpath
+                        results.append({
+                            "file": str(rel),
+                            "line": i + 1,
+                            "text": line.strip()[:200],
+                        })
+                if total_matches > max_results:
+                    break
+
+            return {"matches": results, "total": total_matches, "truncated": total_matches > max_results, "success": True}
+
+        return {"error": f"Unknown action: {action}", "success": False}
+
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
 async def tool_execute_shell_command(command: str, timeout: int = 120, cwd: str = ".") -> dict:
     work_dir = _safe_path(cwd) or WORKSPACE_DIR
     if not work_dir.exists():
         work_dir = WORKSPACE_DIR
 
     timeout = min(timeout, SHELL_TIMEOUT)
-    bus.emit("tool.shell", {"command": command, "cwd": str(work_dir)})
+    bus.emit("tool.shell", {"command": command})
 
     try:
         proc = await asyncio.create_subprocess_shell(
@@ -314,14 +417,14 @@ async def tool_execute_shell_command(command: str, timeout: int = 120, cwd: str 
             cwd=str(work_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "GIT_TERMINAL_PROMPT": "0"},
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
             await proc.communicate()
-            return {"error": f"Command timed out after {timeout}s", "exit_code": -1, "success": False}
+            return {"error": f"Timed out after {timeout}s", "exit_code": -1, "success": False}
 
         stdout_str = stdout.decode("utf-8", errors="replace").strip()
         stderr_str = stderr.decode("utf-8", errors="replace").strip()
@@ -343,6 +446,7 @@ async def tool_git_checkpoint(message: str, add_all: bool = True) -> dict:
         proc = await asyncio.create_subprocess_shell(
             cmd, cwd=str(WORKSPACE_DIR),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
         out, err = await asyncio.wait_for(proc.communicate(), timeout=30)
         return proc.returncode, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
@@ -363,7 +467,6 @@ async def tool_git_checkpoint(message: str, add_all: bool = True) -> dict:
 
         short_hash = out.strip().split("\n")[0] if out.strip() else "ok"
         return {"success": True, "message": message, "commit": short_hash}
-
     except Exception as e:
         return {"error": str(e), "success": False}
 
@@ -377,25 +480,133 @@ async def tool_analyze_project_structure(path: str = ".", max_depth: int = 4, ig
     tree = _build_tree(scan_path, max_depth=max_depth, ignore=ignore_set)
 
     def _count(node_list):
-        files, dirs = 0, 0
+        files, dirs, total_size = 0, 0, 0
         for n in node_list:
             if n["type"] == "dir":
                 dirs += 1
-                f, d = _count(n.get("children", []))
+                f, d, s = _count(n.get("children", []))
                 files += f
                 dirs += d
+                total_size += s
             else:
                 files += 1
-        return files, dirs
+                total_size += n.get("size", 0)
+        return files, dirs, total_size
 
-    total_files, total_dirs = _count(tree)
-
+    total_files, total_dirs, total_size = _count(tree)
     return {
         "success": True,
-        "path": str(scan_path.relative_to(WORKSPACE_DIR)) if scan_path != WORKSPACE_DIR else ".",
         "tree": tree,
-        "stats": {"total_files": total_files, "total_dirs": total_dirs},
+        "stats": {"total_files": total_files, "total_dirs": total_dirs, "total_size": total_size},
     }
+
+
+async def tool_capture_screenshot(region: str = "fullscreen", save_path: str = "") -> dict:
+    if not PILLOW_OK:
+        return {"error": "Pillow not installed. Run: pip install Pillow", "success": False}
+
+    try:
+        if region == "fullscreen":
+            img = ImageGrab.grab()
+        elif region == "active_window":
+            img = ImageGrab.grab()
+        else:
+            img = ImageGrab.grab()
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+        if save_path:
+            save_target = _safe_path(save_path)
+            if save_target:
+                save_target.parent.mkdir(parents=True, exist_ok=True)
+                img.save(str(save_target), format="PNG")
+                return {"success": True, "base64": b64[:100] + "...(truncated)", "saved_to": save_path, "width": img.width, "height": img.height, "full_base64": b64}
+
+        return {"success": True, "base64": b64, "width": img.width, "height": img.height}
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
+async def tool_read_image(path: str) -> dict:
+    try:
+        img_path = pathlib.Path(path)
+        if not img_path.is_absolute():
+            img_path = WORKSPACE_DIR / path
+
+        if not img_path.exists():
+            return {"error": f"Image not found: {path}", "success": False}
+
+        suffix = img_path.suffix.lower()
+        if suffix not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"):
+            return {"error": f"Unsupported format: {suffix}", "success": False}
+
+        with open(img_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+
+        try:
+            from PIL import Image
+            img = Image.open(str(img_path))
+            w, h = img.size
+        except Exception:
+            w, h = 0, 0
+
+        return {"success": True, "base64": b64, "path": str(img_path), "width": w, "height": h, "format": suffix}
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
+
+async def tool_search_code(pattern: str, include: str = "", path: str = ".",
+                           max_results: int = 50, context_lines: int = 2) -> dict:
+    try:
+        search_dir = WORKSPACE_DIR
+        target = _safe_path(path)
+        if target and target.exists() and target.is_dir():
+            search_dir = target
+
+        regex = re.compile(pattern, re.IGNORECASE)
+
+        glob_patterns = [include] if include and "*" in include else [include] if include else ["*"]
+        results = []
+
+        for gp in glob_patterns:
+            for fpath in search_dir.rglob(gp):
+                if not fpath.is_file():
+                    continue
+                if any(skip in fpath.parts for skip in ["node_modules", ".git", "__pycache__", "dist", "build", "venv", ".next"]):
+                    continue
+                try:
+                    lines = fpath.read_text(encoding="utf-8", errors="replace").splitlines()
+                except Exception:
+                    continue
+
+                for i, line in enumerate(lines):
+                    if regex.search(line):
+                        try:
+                            rel = fpath.relative_to(WORKSPACE_DIR)
+                        except ValueError:
+                            rel = fpath
+                        ctx_start = max(0, i - context_lines)
+                        ctx_end = min(len(lines), i + context_lines + 1)
+                        context = []
+                        for j in range(ctx_start, ctx_end):
+                            prefix = ">>>" if j == i else "   "
+                            context.append(f"{prefix} {j+1:4d} | {lines[j].rstrip()}")
+                        results.append({
+                            "file": str(rel),
+                            "line": i + 1,
+                            "match": line.strip()[:200],
+                            "context": "\n".join(context),
+                        })
+                        if len(results) >= max_results:
+                            break
+                if len(results) >= max_results:
+                    break
+
+        return {"results": results, "total": len(results), "truncated": len(results) >= max_results, "success": True}
+    except Exception as e:
+        return {"error": str(e), "success": False}
 
 
 # ════════════════════════════════════════════════════
@@ -407,6 +618,9 @@ TOOL_MAP = {
     "execute_shell_command": tool_execute_shell_command,
     "git_checkpoint": tool_git_checkpoint,
     "analyze_project_structure": tool_analyze_project_structure,
+    "capture_screenshot": tool_capture_screenshot,
+    "read_image": tool_read_image,
+    "search_code": tool_search_code,
 }
 
 
@@ -494,7 +708,7 @@ class Ollama:
         if images:
             payload["images"] = images
         try:
-            _, data = await self._post("/api/generate", payload, timeout_s=180)
+            _, data = await self._post("/api/generate", payload, timeout_s=300)
             return data.get("response", "")
         except Exception as e:
             print(f"[Ollama] generate({model}) error: {e}")
@@ -507,7 +721,7 @@ class Ollama:
         if images:
             payload["images"] = images
         try:
-            async for chunk in self._post_stream("/api/generate", payload, timeout_s=180):
+            async for chunk in self._post_stream("/api/generate", payload, timeout_s=300):
                 text = chunk.get("response", "")
                 if text:
                     yield text
@@ -521,10 +735,17 @@ class Ollama:
         if tools:
             payload["tools"] = tools
         try:
-            async for chunk in self._post_stream("/api/chat", payload, timeout_s=180):
+            async for chunk in self._post_stream("/api/chat", payload, timeout_s=300):
                 yield chunk
         except Exception as e:
             yield {"error": str(e)}
+
+    async def vision_analyze(self, prompt: str, image_b64: str, model: str = None) -> str:
+        use_model = model or MODEL_VISION
+        installed = await self.list_models()
+        if not self.model_installed(use_model, installed):
+            use_model = MODEL_CODING if self.model_installed(MODEL_CODING, installed) else MODEL_REASONING
+        return await self.generate(prompt, model=use_model, images=[image_b64])
 
 
 ollama = Ollama()
@@ -535,8 +756,7 @@ ollama = Ollama()
 # ════════════════════════════════════════════════════
 
 CODE_KEYWORDS = re.compile(
-    r"(?:"
-    r"код|кодируй|напиши код|программ|скрипт|функци"
+    r"(?:код|кодируй|напиши код|программ|скрипт|функци"
     r"|html|css|javascript|typescript|react|vue|angular|svelte"
     r"|python|java|c\+\+|rust|go|sql"
     r"|сайт|лендинг|интерфейс|страниц|верстк|фронтенд|бэкенд"
@@ -545,12 +765,16 @@ CODE_KEYWORDS = re.compile(
     r"|deploy|билд|сборк|настроен"
     r"|bot|скрипт|автоматиз"
     r"|создай|создать|собери|собрать|проект|систему|приложен"
-    r")",
-    re.IGNORECASE,
-)
+    r")", re.IGNORECASE)
+
+VISION_KEYWORDS = re.compile(
+    r"(?:скриншот|screenshot|покажи|видео|изображен|картинк|фото|анализ.*экран|что.*на.*экране|what.*on.*screen)",
+    re.IGNORECASE)
 
 
 def route_request(prompt):
+    if VISION_KEYWORDS.search(prompt):
+        return MODEL_VISION, "vision"
     if CODE_KEYWORDS.search(prompt):
         return MODEL_CODING, "coding"
     return MODEL_REASONING, "reasoning"
@@ -570,18 +794,29 @@ SYSTEM_CODING = (
     "Всегда объясняй что делаешь."
 )
 
+SYSTEM_VISION = (
+    "Ты — Hermes Studio, локальный ИИ с поддержкой зрения. "
+    "Анализируй изображения подробно и точно. "
+    "Описывай что видишь на скриншоте, интерфейсе, диаграмме. "
+    "Отвечай на русском."
+)
+
 SYSTEM_AGENT = (
     f"{AGENT_SYSTEM}\n\n"
     "You have these tools:\n"
-    "- workspace_file_ops: read/write/create/delete/list files in workspace\n"
-    "- execute_shell_command: run shell commands (npm install, pytest, etc.)\n"
+    "- workspace_file_ops: read/write/create/delete/list/grep/search_replace/read_lines files\n"
+    "- execute_shell_command: run shell commands (npm install, pytest, tsc, etc.)\n"
     "- git_checkpoint: create git commits\n"
     "- analyze_project_structure: scan directory tree\n"
+    "- capture_screenshot: take screenshots for visual analysis\n"
+    "- read_image: read images from disk for vision\n"
+    "- search_code: search across codebase with regex\n"
     "- done: signal task completion\n\n"
     f"Workspace: {WORKSPACE_DIR}\n"
     f"Current date: {datetime.now().strftime('%Y-%m-%d')}\n\n"
     "IMPORTANT: Use tools to build the project step by step. "
     "Write each file, run builds, fix errors, commit progress. "
+    "Use capture_screenshot to verify visual output. "
     "When finished, call the 'done' tool with a summary."
 )
 
@@ -743,11 +978,10 @@ bus = EventBus()
 async def ensure_ollama():
     if await ollama.is_available():
         return True
-
     if not CFG["ollama"].get("auto_start", True):
         return False
 
-    print("[Hermes] Ollama not running, attempting to start...")
+    print("[Hermes] Ollama not running, starting...")
     if not OLLAMA_EXE.exists():
         print(f"[Hermes] Ollama not found at {OLLAMA_EXE}")
         return False
@@ -757,8 +991,7 @@ async def ensure_ollama():
         os.environ["OLLAMA_MODELS"] = OLLAMA_MODELS
         subprocess.Popen(
             [str(OLLAMA_EXE), "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except Exception as e:
@@ -768,7 +1001,7 @@ async def ensure_ollama():
     for _ in range(20):
         await asyncio.sleep(0.5)
         if await ollama.is_available():
-            print("[Hermes] Ollama started successfully.")
+            print("[Hermes] Ollama started.")
             return True
 
     print("[Hermes] Ollama did not start in time.")
@@ -790,10 +1023,11 @@ async def health_handler(request):
     ollama_ok = await ollama.is_available()
     return web.json_response({
         "status": "ok",
-        "version": "3.0-agentic",
+        "version": "3.1-vision",
         "port": PORT,
         "ollama": {"available": ollama_ok},
         "workspace": str(WORKSPACE_DIR),
+        "pillow": PILLOW_OK,
     })
 
 
@@ -805,6 +1039,7 @@ async def models_handler(request):
         "reasoning": {"model": MODEL_REASONING, "installed": ollama.model_installed(MODEL_REASONING, models)},
         "coding": {"model": MODEL_CODING, "installed": ollama.model_installed(MODEL_CODING, models)},
         "agent": {"model": MODEL_AGENT, "installed": ollama.model_installed(MODEL_AGENT, models)},
+        "vision": {"model": MODEL_VISION, "installed": ollama.model_installed(MODEL_VISION, models)},
     })
 
 
@@ -828,7 +1063,7 @@ async def chat_handler(request):
         return web.json_response({"error": "empty prompt"}, status=400)
 
     model, route_type = route_request(prompt)
-    system = SYSTEM_CODING if route_type == "coding" else SYSTEM_REASONING
+    system = SYSTEM_CODING if route_type == "coding" else SYSTEM_VISION if route_type == "vision" else SYSTEM_REASONING
 
     if history:
         recent = history[-6:]
@@ -841,37 +1076,25 @@ async def chat_handler(request):
     bus.emit("chat.request", {"prompt": prompt[:200], "model": model, "route": route_type})
 
     if not await ensure_ollama():
-        msg = (
-            "Ollama не запущена.\n\n"
-            "1. Установи: https://ollama.com\n"
-            "2. Запусти:  ollama serve\n"
-            "3. Скачай модели:  python setup_models.py\n\n"
-            "Или запусти Hermes — он попробует стартовать автоматически."
-        )
+        msg = "Ollama not running. Install: https://ollama.com | Then: ollama serve"
         if use_stream:
             return await _stream_text(request, msg)
         return web.json_response({"text": msg, "model": "unavailable"})
 
     installed = await ollama.list_models()
     if not ollama.model_installed(model, installed):
-        msg = (
-            f"Модель {model} не скачана.\n\n"
-            f"Запусти:  python setup_models.py\n"
-            f"Или вручную:  ollama pull {model}"
-        )
-        if use_stream:
-            return await _stream_text(request, msg)
-        return web.json_response({"text": msg, "model": "missing"})
+        fallback = MODEL_CODING if ollama.model_installed(MODEL_CODING, installed) else MODEL_REASONING
+        if not ollama.model_installed(fallback, installed):
+            msg = f"Model {model} not installed. Run: python setup_models.py"
+            if use_stream:
+                return await _stream_text(request, msg)
+            return web.json_response({"text": msg, "model": "missing"})
+        model = fallback
 
     if use_stream:
         bus.emit("chat.stream_start", {"model": model, "route": route_type})
         resp = web.StreamResponse(
-            headers={
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
+            headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
         )
         await resp.prepare(request)
 
@@ -893,7 +1116,7 @@ async def chat_handler(request):
         bus.emit("chat.done", {"model": model, "route": route_type})
         return web.json_response({"text": text, "model": model, "route": route_type})
 
-    return web.json_response({"text": "Не удалось получить ответ. Попробуй ещё раз.", "model": "error"})
+    return web.json_response({"text": "Failed to get response. Try again.", "model": "error"})
 
 
 async def agent_handler(request):
@@ -917,12 +1140,7 @@ async def agent_handler(request):
     agent = AgentLoop(task=task, model=use_model)
 
     resp = web.StreamResponse(
-        headers={
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+        headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
     await resp.prepare(request)
 
@@ -947,19 +1165,35 @@ async def agent_handler(request):
     return resp
 
 
+async def analyze_image_handler(request):
+    body = await request.json()
+    image_b64 = body.get("image")
+    prompt = body.get("prompt", "Describe this image in detail.")
+    save_path = body.get("save_path")
+
+    if not image_b64:
+        return web.json_response({"error": "No image provided"}, status=400)
+
+    if save_path:
+        save_target = WORKSPACE_DIR / save_path
+        save_target.parent.mkdir(parents=True, exist_ok=True)
+        import base64 as b64mod
+        save_target.write_bytes(b64mod.b64decode(image_b64))
+
+    result = await ollama.vision_analyze(prompt, image_b64)
+    if result:
+        return web.json_response({"description": result, "model": MODEL_VISION})
+
+    return web.json_response({"error": "Vision analysis failed"}, status=500)
+
+
 async def _stream_text(request, text):
     resp = web.StreamResponse(
-        headers={
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
+        headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
     await resp.prepare(request)
-    chunk = json.dumps({"text": text, "done": False}, ensure_ascii=False)
-    await resp.write(f"data: {chunk}\n\n".encode())
-    done = json.dumps({"text": "", "done": True}, ensure_ascii=False)
-    await resp.write(f"data: {done}\n\n".encode())
+    await resp.write(f"data: {json.dumps({'text': text, 'done': False}, ensure_ascii=False)}\n\n".encode())
+    await resp.write(f"data: {json.dumps({'text': '', 'done': True}, ensure_ascii=False)}\n\n".encode())
     return resp
 
 
@@ -985,10 +1219,7 @@ async def upload_handler(request):
                 break
             size += len(chunk)
             if size > max_bytes:
-                return web.json_response(
-                    {"error": f"File too large (max {CFG['limits']['max_upload_mb']}MB)"},
-                    status=413,
-                )
+                return web.json_response({"error": f"Too large (max {CFG['limits']['max_upload_mb']}MB)"}, status=413)
             f.write(chunk)
 
     bus.emit("upload.done", {"filename": filename, "size": size})
@@ -998,12 +1229,7 @@ async def upload_handler(request):
 async def events_handler(request):
     q = bus.subscribe()
     resp = web.StreamResponse(
-        headers={
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        }
+        headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
     )
     await resp.prepare(request)
     try:
@@ -1042,6 +1268,7 @@ routes = [
     web.get("/api/workspace", workspace_handler),
     web.post("/api/chat", chat_handler),
     web.post("/api/agent", agent_handler),
+    web.post("/api/analyze_image", analyze_image_handler),
     web.post("/api/upload", upload_handler),
     web.get("/api/events", events_handler),
 ]
@@ -1053,28 +1280,29 @@ if UPLOAD_DIR.exists():
 
 
 async def on_startup(app):
-    bus.emit("system.started", {"time": time.time(), "version": "3.0-agentic"})
+    bus.emit("system.started", {"time": time.time(), "version": "3.1-vision"})
 
     ollama_ok = await ensure_ollama()
     models = await ollama.list_models() if ollama_ok else []
     reasoning_ok = ollama.model_installed(MODEL_REASONING, models)
     coding_ok = ollama.model_installed(MODEL_CODING, models)
     agent_ok = ollama.model_installed(MODEL_AGENT, models)
+    vision_ok = ollama.model_installed(MODEL_VISION, models)
 
     bus.emit("models.status", {
-        "ollama": ollama_ok,
-        "reasoning": reasoning_ok,
-        "coding": coding_ok,
-        "agent": agent_ok,
+        "ollama": ollama_ok, "reasoning": reasoning_ok,
+        "coding": coding_ok, "agent": agent_ok, "vision": vision_ok,
     })
 
     print()
-    print(f"  Hermes Studio v3 — Agentic Tool Suite")
+    print(f"  Hermes Studio v3.1 — Agentic Tool Suite + Vision")
     print(f"  http://127.0.0.1:{PORT}")
     print(f"  Ollama:      {'ON' if ollama_ok else 'OFF'}")
     print(f"  Reasoning:   {MODEL_REASONING} {'ready' if reasoning_ok else 'NOT INSTALLED'}")
     print(f"  Coding:      {MODEL_CODING} {'ready' if coding_ok else 'NOT INSTALLED'}")
     print(f"  Agent:       {MODEL_AGENT} {'ready' if agent_ok else 'NOT INSTALLED'}")
+    print(f"  Vision:      {MODEL_VISION} {'ready' if vision_ok else 'NOT INSTALLED'}")
+    print(f"  Pillow:      {'YES' if PILLOW_OK else 'NO (pip install Pillow)'}")
     print(f"  Workspace:   {WORKSPACE_DIR}")
     print(f"  Tools:       {len(TOOLS_SCHEMA)} available")
     if not reasoning_ok or not coding_ok:
@@ -1085,10 +1313,6 @@ async def on_startup(app):
 
 app.on_startup.append(on_startup)
 
-
-# ════════════════════════════════════════════════════
-# 11. Main
-# ════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     web.run_app(app, host="127.0.0.1", port=PORT)

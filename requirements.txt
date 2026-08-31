@@ -1,7 +1,8 @@
-# Hermes Studio - Clean Rebuild Requirements
+# Hermes Studio v3 - Agentic Tool Suite
 # Install: pip install -r requirements.txt
 
 aiohttp==3.9.1
 aiohttp-cors==0.7.0
 psutil==5.9.8
 requests==2.31.0
+Pillow==10.2.0

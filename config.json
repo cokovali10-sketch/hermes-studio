@@ -7,7 +7,8 @@
     "reasoning": "deepseek-r1:1.5b",
     "coding": "qwen2.5-coder:1.5b",
     "fallback": "deepseek-r1:1.5b",
-    "agent": "qwen2.5-coder:1.5b"
+    "agent": "qwen2.5-coder:1.5b",
+    "vision": "llava:1.6-mistral"
   },
   "ollama": {
     "host": "http://127.0.0.1:11434",
