@@ -625,13 +625,20 @@ TOOL_MAP = {
 
 
 async def call_tool(name: str, args: dict) -> dict:
+    global _tool_call_count
     fn = TOOL_MAP.get(name)
     if not fn:
         return {"error": f"Unknown tool: {name}", "success": False}
 
+    _tool_call_count += 1
+    _tool_calls_by_name[name] = _tool_calls_by_name.get(name, 0) + 1
+
     bus.emit("tool.call", {"tool": name, "args": json.dumps(args, ensure_ascii=False)[:300]})
 
+    t0 = time.time()
     result = await fn(**args)
+    elapsed = time.time() - t0
+    _tool_call_times.append({"tool": name, "time": elapsed, "success": result.get("success", False)})
 
     bus.emit("tool.result", {
         "tool": name,
@@ -1243,7 +1250,51 @@ async def events_handler(request):
 
 
 # ════════════════════════════════════════════════════
-# 10. App Setup
+# 10. Stats Dashboard
+# ════════════════════════════════════════════════════
+
+_tool_call_count = 0
+_tool_calls_by_name = {}
+_tool_call_times = []
+
+async def stats_handler(request):
+    ollama_ok = await ollama.is_available()
+    models_list = await ollama.list_models() if ollama_ok else []
+
+    stats = {
+        "server": {
+            "version": "3.2-stats",
+            "port": PORT,
+            "uptime": time.time(),
+        },
+        "tools": {
+            "total": len(TOOL_MAP),
+            "available": list(TOOL_MAP.keys()),
+            "total_calls": _tool_call_count,
+            "calls_by_name": _tool_calls_by_name,
+        },
+        "models": {
+            "ollama": ollama_ok,
+            "reasoning": {"model": MODEL_REASONING, "installed": ollama.model_installed(MODEL_REASONING, models_list)},
+            "coding": {"model": MODEL_CODING, "installed": ollama.model_installed(MODEL_CODING, models_list)},
+            "agent": {"model": MODEL_AGENT, "installed": ollama.model_installed(MODEL_AGENT, models_list)},
+            "vision": {"model": MODEL_VISION, "installed": ollama.model_installed(MODEL_VISION, models_list)},
+        },
+        "workspace": str(WORKSPACE_DIR),
+        "pillow": PILLOW_OK,
+    }
+    return web.json_response(stats)
+
+
+async def stats_dashboard_handler(request):
+    html_path = FRONTEND_DIR / "stats.html"
+    if html_path.exists():
+        return web.FileResponse(html_path)
+    return web.Response(text="Stats dashboard not found", status=404)
+
+
+# ════════════════════════════════════════════════════
+# 11. App Setup
 # ════════════════════════════════════════════════════
 
 app = web.Application()
@@ -1262,9 +1313,11 @@ cors = aiohttp_cors.setup(
 
 routes = [
     web.get("/", index_handler),
+    web.get("/stats", stats_dashboard_handler),
     web.get("/api/health", health_handler),
     web.get("/api/models", models_handler),
     web.get("/api/tools", tools_handler),
+    web.get("/api/stats", stats_handler),
     web.get("/api/workspace", workspace_handler),
     web.post("/api/chat", chat_handler),
     web.post("/api/agent", agent_handler),
@@ -1280,7 +1333,7 @@ if UPLOAD_DIR.exists():
 
 
 async def on_startup(app):
-    bus.emit("system.started", {"time": time.time(), "version": "3.1-vision"})
+    bus.emit("system.started", {"time": time.time(), "version": "3.2-stats"})
 
     ollama_ok = await ensure_ollama()
     models = await ollama.list_models() if ollama_ok else []
@@ -1295,7 +1348,7 @@ async def on_startup(app):
     })
 
     print()
-    print(f"  Hermes Studio v3.1 — Agentic Tool Suite + Vision")
+    print(f"  Hermes Studio v3.2 — Agentic Tool Suite + Stats")
     print(f"  http://127.0.0.1:{PORT}")
     print(f"  Ollama:      {'ON' if ollama_ok else 'OFF'}")
     print(f"  Reasoning:   {MODEL_REASONING} {'ready' if reasoning_ok else 'NOT INSTALLED'}")

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes Stats Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #09090b;
+      --surface: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --fg: #fafafa;
+      --fg-muted: #52525b;
+      --accent: #22d3ee;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --blue: #3b82f6;
+      --purple: #a78bfa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #06b6d4);
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 1.1rem;
+      color: #000;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .subtitle {
+      color: var(--fg-muted);
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      margin-top: 0.25rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .status-row:last-child { border-bottom: none; }
+
+    .status-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.off { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+    .status-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .tool-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+    }
+
+    .tool-icon {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      display: grid; place-items: center;
+      font-size: 0.7rem;
+    }
+
+    .tool-icon.file { background: rgba(34,211,238,0.12); color: var(--accent); }
+    .tool-icon.shell { background: rgba(34,197,94,0.12); color: var(--green); }
+    .tool-icon.git { background: rgba(59,130,246,0.12); color: var(--blue); }
+    .tool-icon.vision { background: rgba(167,139,250,0.12); color: var(--purple); }
+    .tool-icon.search { background: rgba(234,179,8,0.12); color: var(--yellow); }
+    .tool-icon.other { background: rgba(255,255,255,0.06); color: var(--fg-muted); }
+
+    .footer {
+      text-align: center;
+      padding: 2rem 0;
+      color: var(--fg-muted);
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem;
+      color: var(--fg-muted);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .pulse { animation: pulse 2s ease infinite; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">H</div>
+    <div>
+      <h1>Hermes Stats</h1>
+      <div class="subtitle">Agentic Tool Suite — Dashboard</div>
+    </div>
+    <button class="refresh-btn" onclick="loadStats()">Refresh</button>
+  </div>
+
+  <div id="content">
+    <div class="loading pulse">Loading stats...</div>
+  </div>
+
+  <div class="footer">
+    Auto-refresh in <span id="countdown">10</span>s | Built with Hermes tools
+  </div>
+
+  <script>
+    const API = 'http://127.0.0.1:8765';
+    let refreshTimer;
+    let countdown = 10;
+
+    const toolIcons = {
+      'workspace_file_ops': { icon: 'F', cls: 'file' },
+      'execute_shell_command': { icon: '>', cls: 'shell' },
+      'git_checkpoint': { icon: 'G', cls: 'git' },
+      'analyze_project_structure': { icon: 'T', cls: 'other' },
+      'capture_screenshot': { icon: 'S', cls: 'vision' },
+      'read_image': { icon: 'I', cls: 'vision' },
+      'search_code': { icon: '/', cls: 'search' },
+      'done': { icon: 'D', cls: 'other' },
+    };
+
+    async function loadStats() {
+      try {
+        const r = await fetch(API + '/api/health');
+        const health = await r.json();
+
+        const r2 = await fetch(API + '/api/models');
+        const models = await r2.json();
+
+        const r3 = await fetch(API + '/api/tools');
+        const tools = await r3.json();
+
+        const toolCount = tools.tools?.length || 0;
+        const visionOk = models.vision?.installed || false;
+        const agentOk = models.agent?.installed || false;
+
+        document.getElementById('content').innerHTML = `
+          <div class="grid">
+            <div class="card">
+              <div class="card-title">Server Status</div>
+              <div class="stat-value" style="color: var(--green)">Online</div>
+              <div class="stat-label">Port ${health.port} | Version ${health.version}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Tools Available</div>
+              <div class="stat-value" style="color: var(--accent)">${toolCount}</div>
+              <div class="stat-label">Agentic toolkit ready</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Vision Support</div>
+              <div class="stat-value" style="color: ${visionOk ? 'var(--green)' : 'var(--yellow)'}">${visionOk ? 'Active' : 'Missing'}</div>
+              <div class="stat-label">${visionOk ? 'llava model installed' : 'Run: ollama pull llava:1.6-mistral'}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Agent Loop</div>
+              <div class="stat-value" style="color: ${agentOk ? 'var(--green)' : 'var(--red)'}">${agentOk ? 'Ready' : 'Offline'}</div>
+              <div class="stat-label">${agentOk ? models.agent.model : 'No model'}</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom: 1rem">
+            <div class="card-title">Models</div>
+            ${['reasoning', 'coding', 'agent', 'vision'].map(key => {
+              const m = models[key];
+              const ok = m?.installed;
+              return `<div class="status-row">
+                <div class="status-label">
+                  <div class="status-dot ${ok ? 'on' : 'off'}"></div>
+                  <span>${key}</span>
+                </div>
+                <div class="status-value">${m?.model || 'N/A'}</div>
+              </div>`;
+            }).join('')}
+            <div class="status-row">
+              <div class="status-label">
+                <div class="status-dot ${health.ollama?.available ? 'on' : 'off'}"></div>
+                <span>Ollama</span>
+              </div>
+              <div class="status-value">${health.ollama?.available ? 'Running' : 'Offline'}</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Tool Kit (${toolCount} tools)</div>
+            <div class="tool-grid">
+              ${tools.tools.map(t => {
+                const info = toolIcons[t.function.name] || toolIcons['other'];
+                return `<div class="tool-item">
+                  <div class="tool-icon ${info.cls}">${info.icon}</div>
+                  <span>${t.function.name}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById('content').innerHTML = `
+          <div class="card">
+            <div class="card-title">Error</div>
+            <div style="color: var(--red); font-size: 0.85rem">${e.message}</div>
+            <div class="stat-label">Is the server running?</div>
+          </div>
+        `;
+      }
+
+      countdown = 10;
+    }
+
+    function startCountdown() {
+      setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').textContent = countdown;
+        if (countdown <= 0) {
+          loadStats();
+        }
+      }, 1000);
+    }
+
+    loadStats();
+    startCountdown();
+  </script>
+</body>
+</html>
