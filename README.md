@@ -37,7 +37,7 @@ Hermes Studio v3 is an **autonomous AI agent** that builds complete software pro
 
 ## Features
 
-### Agent Toolkit (8 Tools)
+### Agent Toolkit (16 Tools + Plugins)
 | Tool | Description |
 |------|-------------|
 | `workspace_file_ops` | Read, write, create, delete, list, grep, search_replace, read_lines |
@@ -47,15 +47,27 @@ Hermes Studio v3 is an **autonomous AI agent** that builds complete software pro
 | `capture_screenshot` | Take screenshots of screen/window for visual analysis |
 | `read_image` | Read images from disk for vision model analysis |
 | `search_code` | Regex search across codebase with context lines |
+| `run_python` | Execute Python code directly |
+| `fetch_url` | HTTP GET/POST to URLs |
+| `diff_apply` | Apply unified diffs to files |
+| `kill_process` | Kill processes by name or PID |
+| `env_info` | System info (OS, Python, packages, disk) |
+| `list_templates` | List project templates |
+| `scaffold_project` | Create project from template (react-ts, python-fastapi, node-express, static-html) |
 | `done` | Signal task completion with summary |
+| `get_weather` | Weather lookup (plugin example) |
 
 ### Core
 - **Agent Loop** — iterative tool calling with OpenAI/Ollama compatible JSON Schema
+- **Output Parser** — works even with small models that don't use function calling
 - **Live Execution Stream** — real-time panel showing which tool is running
 - **Smart Router** — automatic prompt classification (reasoning vs coding vs vision)
 - **Vision Support** — analyze screenshots, images, UI elements with llava model
 - **Screenshot Capture** — take screenshots directly from the agent
 - **Code Search** — regex search across codebase with context
+- **Project Templates** — scaffold React, FastAPI, Express, Static sites
+- **Plugin System** — add custom tools via Python files in `plugins/`
+- **Safety Protocol** — 30+ rules blocking dangerous commands, system file access, malicious code
 - **Streaming responses** — text appears token by token
 - **File upload** — attach images for vision analysis
 - **100% offline** — works without internet, no data leaves your PC
@@ -193,10 +205,14 @@ hermes-studio/
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Frontend UI |
+| `GET` | `/stats` | Stats Dashboard |
 | `GET` | `/api/health` | Health check + version |
 | `GET` | `/api/models` | Installed models status |
 | `GET` | `/api/tools` | Tool schemas (JSON Schema) |
+| `GET` | `/api/stats` | Usage statistics |
 | `GET` | `/api/workspace` | Workspace file tree |
+| `GET` | `/api/plugins` | List loaded plugins |
+| `POST` | `/api/plugins/reload` | Hot-reload plugins |
 | `POST` | `/api/chat` | Chat (`?stream=1` for SSE) |
 | `POST` | `/api/agent` | Agent loop with tool calling (SSE) |
 | `POST` | `/api/analyze_image` | Vision analysis of uploaded image |
