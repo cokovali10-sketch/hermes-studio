@@ -336,6 +336,225 @@ async def stats_dashboard_handler(request):
     return web.Response(text="Stats dashboard not found", status=404)
 
 
+# ─── Phase 2: Persistence Handlers ────────────────────────────────────────────
+
+async def list_conversations_handler(request):
+    from hermes.storage.conversations import list_conversations
+    convs = list_conversations()
+    return web.json_response({"conversations": convs})
+
+
+async def create_conversation_handler(request):
+    from hermes.storage.conversations import create_conversation
+    data = await request.json()
+    conv_id = create_conversation(
+        title=data.get("title", "New Conversation"),
+        model=data.get("model"),
+        mode=data.get("mode", "chat"),
+    )
+    return web.json_response({"conversation_id": conv_id})
+
+
+async def get_conversation_handler(request):
+    from hermes.storage.conversations import get_conversation
+    conv_id = request.match_info["id"]
+    conv = get_conversation(conv_id)
+    if not conv:
+        return web.json_response({"error": "Not found"}, status=404)
+    return web.json_response(conv)
+
+
+async def delete_conversation_handler(request):
+    from hermes.storage.conversations import delete_conversation
+    conv_id = request.match_info["id"]
+    delete_conversation(conv_id)
+    return web.json_response({"success": True})
+
+
+# ─── Phase 3: Memory Handlers ─────────────────────────────────────────────────
+
+async def list_memory_projects_handler(request):
+    from hermes.modules.memory import MemoryEngine
+    engine = MemoryEngine()
+    projects = engine.list_projects()
+    return web.json_response({"projects": projects})
+
+
+async def scan_memory_handler(request):
+    from hermes.modules.memory import MemoryEngine
+    data = await request.json()
+    engine = MemoryEngine()
+    result = engine.scan_project(data.get("path", str(WORKSPACE_DIR)))
+    return web.json_response(result)
+
+
+async def get_memory_project_handler(request):
+    from hermes.modules.memory import MemoryEngine
+    project_id = request.match_info["id"]
+    engine = MemoryEngine()
+    result = engine.get_project_context(project_id)
+    return web.json_response({"context": result})
+
+
+async def remember_fact_handler(request):
+    from hermes.modules.memory import MemoryEngine
+    project_id = request.match_info["id"]
+    data = await request.json()
+    engine = MemoryEngine()
+    result = engine.remember_fact(project_id, data.get("type", "info"), data.get("content", ""))
+    return web.json_response(result)
+
+
+async def recall_facts_handler(request):
+    from hermes.modules.memory import MemoryEngine
+    project_id = request.match_info["id"]
+    query = request.query.get("q", "")
+    engine = MemoryEngine()
+    facts = engine.recall_facts(project_id, query)
+    return web.json_response({"facts": facts})
+
+
+# ─── Phase 4: Planning Handlers ───────────────────────────────────────────────
+
+async def list_plans_handler(request):
+    from hermes.modules.planning import PlanningEngine
+    engine = PlanningEngine()
+    plans = engine.list_plans()
+    return web.json_response({"plans": plans})
+
+
+async def create_plan_handler(request):
+    from hermes.modules.planning import PlanningEngine
+    data = await request.json()
+    engine = PlanningEngine()
+    plan = engine.create_plan(data.get("task", ""), data.get("context", ""))
+    return web.json_response(plan)
+
+
+async def get_plan_handler(request):
+    from hermes.modules.planning import PlanningEngine
+    plan_id = request.match_info["id"]
+    engine = PlanningEngine()
+    plan = engine.get_plan_status(plan_id)
+    if not plan:
+        return web.json_response({"error": "Not found"}, status=404)
+    return web.json_response(plan)
+
+
+async def execute_plan_handler(request):
+    from hermes.modules.planning import PlanningEngine
+    plan_id = request.match_info["id"]
+    data = await request.json()
+    engine = PlanningEngine()
+    result = engine.execute_plan_step(plan_id, data.get("step_id"))
+    return web.json_response(result)
+
+
+# ─── Phase 5: Code Intelligence Handlers ──────────────────────────────────────
+
+async def parse_file_handler(request):
+    from hermes.modules.code_intel.parser import parse_file
+    data = await request.json()
+    result = parse_file(data.get("path", ""))
+    return web.json_response(result)
+
+
+async def semantic_search_handler(request):
+    from hermes.modules.code_intel.semantic import SemanticSearch
+    data = await request.json()
+    searcher = SemanticSearch()
+    results = searcher.search(data.get("query", ""), data.get("path", str(WORKSPACE_DIR)))
+    return web.json_response({"results": results})
+
+
+async def dependency_graph_handler(request):
+    from hermes.modules.code_intel.deps import DependencyGraph
+    data = await request.json()
+    graph = DependencyGraph()
+    result = graph.build_graph(data.get("path", str(WORKSPACE_DIR)))
+    return web.json_response(result)
+
+
+async def api_discovery_handler(request):
+    from hermes.modules.code_intel.api_discovery import discover_api_endpoints
+    data = await request.json()
+    endpoints = discover_api_endpoints(data.get("path", str(WORKSPACE_DIR)))
+    return web.json_response({"endpoints": endpoints})
+
+
+# ─── Phase 6: Agent-to-Agent Handlers ─────────────────────────────────────────
+
+_agents = {}  # Active agents
+
+
+async def list_agents_handler(request):
+    agents_list = [{"id": aid, "status": a.get("status", "unknown")} for aid, a in _agents.items()]
+    return web.json_response({"agents": agents_list})
+
+
+async def spawn_agent_handler(request):
+    from hermes.modules.agents.coordinator import CoordinatorAgent
+    data = await request.json()
+    agent_id = f"agent_{uuid.uuid4().hex[:8]}"
+    agent = CoordinatorAgent(agent_id, data.get("task", ""), model=data.get("model"))
+    _agents[agent_id] = {"agent": agent, "status": "idle", "task": data.get("task", "")}
+    return web.json_response({"agent_id": agent_id, "status": "spawned"})
+
+
+async def get_agent_handler(request):
+    agent_id = request.match_info["id"]
+    agent_info = _agents.get(agent_id)
+    if not agent_info:
+        return web.json_response({"error": "Not found"}, status=404)
+    return web.json_response({"id": agent_id, "status": agent_info["status"], "task": agent_info["task"]})
+
+
+async def stop_agent_handler(request):
+    agent_id = request.match_info["id"]
+    if agent_id in _agents:
+        _agents[agent_id]["status"] = "stopped"
+        return web.json_response({"success": True})
+    return web.json_response({"error": "Not found"}, status=404)
+
+
+# ─── Phase 7: Vision + 3D Handlers ────────────────────────────────────────────
+
+async def vision_analyze_handler(request):
+    from hermes.modules.vision.analysis import analyze_ui_screenshot
+    data = await request.json()
+    image_b64 = data.get("image", "")
+    result = analyze_ui_screenshot(image_b64)
+    return web.json_response(result)
+
+
+async def generate_3d_handler(request):
+    from hermes.modules.vision.threejs_gen import generate_threejs_scene
+    data = await request.json()
+    scene_html = generate_threejs_scene(data.get("description", ""), data.get("objects", []))
+    return web.json_response({"html": scene_html})
+
+
+# ─── Phase 8: Self-Improve + Orchestration Handlers ───────────────────────────
+
+async def performance_handler(request):
+    from hermes.modules.self_improve.perf_profiler import PerfProfiler
+    profiler = PerfProfiler()
+    return web.json_response({"scores": profiler.get_model_scores()})
+
+
+async def error_patterns_handler(request):
+    from hermes.modules.self_improve.error_logger import ErrorLogger
+    logger = ErrorLogger()
+    patterns = logger.get_error_patterns()
+    return web.json_response({"patterns": patterns})
+
+
+async def model_score_handler(request):
+    from hermes.modules.self_improve.perf_profiler import PerfProfiler
+    profiler = PerfProfiler()
+    return web.json_response({"scores": profiler.get_model_scores()})
+
+
 async def on_startup(app):
     bus.emit("system.started", {"time": time.time(), "version": "5.0.0"})
 
@@ -410,6 +629,39 @@ def create_app():
         web.post("/api/analyze_image", analyze_image_handler),
         web.post("/api/upload", upload_handler),
         web.get("/api/events", events_handler),
+        # Phase 2: Persistence
+        web.get("/api/conversations", list_conversations_handler),
+        web.post("/api/conversations", create_conversation_handler),
+        web.get("/api/conversations/{id}", get_conversation_handler),
+        web.delete("/api/conversations/{id}", delete_conversation_handler),
+        # Phase 3: Memory
+        web.get("/api/memory/projects", list_memory_projects_handler),
+        web.post("/api/memory/scan", scan_memory_handler),
+        web.get("/api/memory/projects/{id}", get_memory_project_handler),
+        web.post("/api/memory/projects/{id}/remember", remember_fact_handler),
+        web.get("/api/memory/projects/{id}/recall", recall_facts_handler),
+        # Phase 4: Planning
+        web.get("/api/plans", list_plans_handler),
+        web.post("/api/plans", create_plan_handler),
+        web.get("/api/plans/{id}", get_plan_handler),
+        web.post("/api/plans/{id}/execute", execute_plan_handler),
+        # Phase 5: Code Intelligence
+        web.post("/api/code-intel/parse", parse_file_handler),
+        web.post("/api/code-intel/search", semantic_search_handler),
+        web.post("/api/code-intel/dependencies", dependency_graph_handler),
+        web.post("/api/code-intel/api-discovery", api_discovery_handler),
+        # Phase 6: Agents
+        web.get("/api/agents", list_agents_handler),
+        web.post("/api/agents/spawn", spawn_agent_handler),
+        web.get("/api/agents/{id}", get_agent_handler),
+        web.post("/api/agents/{id}/stop", stop_agent_handler),
+        # Phase 7: Vision + 3D
+        web.post("/api/vision/analyze", vision_analyze_handler),
+        web.post("/api/3d/generate", generate_3d_handler),
+        # Phase 8: Self-Improve + Orchestration
+        web.get("/api/performance", performance_handler),
+        web.get("/api/errors/patterns", error_patterns_handler),
+        web.get("/api/models/score", model_score_handler),
     ]
     for route in routes:
         cors.add(app.router.add_route(route.method, route.path, route.handler))

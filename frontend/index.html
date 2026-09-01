@@ -559,6 +559,10 @@
         <div class="mode-tabs">
           <button class="mode-tab active" data-mode="chat" onclick="switchMode('chat')">Chat</button>
           <button class="mode-tab" data-mode="agent" onclick="switchMode('agent')">Agent</button>
+          <button class="mode-tab" data-mode="memory" onclick="switchMode('memory')">Memory</button>
+          <button class="mode-tab" data-mode="planning" onclick="switchMode('planning')">Planning</button>
+          <button class="mode-tab" data-mode="code-intel" onclick="switchMode('code-intel')">Code Intel</button>
+          <button class="mode-tab" data-mode="vision" onclick="switchMode('vision')">Vision</button>
         </div>
         <div class="topbar-spacer"></div>
         <div class="status-pill">
@@ -589,6 +593,57 @@
             </div>
           </div>
           <div class="agent-stream" id="agent-stream"></div>
+        </div>
+
+        <!-- Memory Panel -->
+        <div class="panel" id="memory-panel" style="display:none; flex-direction:column; height:100%;">
+          <div class="agent-header">
+            <span class="agent-title">Project Memory</span>
+            <button class="mode-tab" onclick="scanProject()" style="font-size:0.7rem; padding:0.3rem 0.6rem;">Scan Project</button>
+          </div>
+          <div id="memory-list" style="flex:1; overflow-y:auto; padding:1rem;"></div>
+          <div class="input-area" style="padding:0.5rem;">
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="memory-fact-type" placeholder="Type (structure/pattern/error/preference)" style="flex:1;" />
+              <input type="text" id="memory-fact-content" placeholder="Fact content..." style="flex:2;" />
+              <button class="send-btn" onclick="rememberFact()">Remember</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Planning Panel -->
+        <div class="panel" id="planning-panel" style="display:none; flex-direction:column; height:100%;">
+          <div class="agent-header">
+            <span class="agent-title">Task Planning</span>
+            <button class="mode-tab" onclick="createPlan()" style="font-size:0.7rem; padding:0.3rem 0.6rem;">New Plan</button>
+          </div>
+          <div id="plans-list" style="flex:1; overflow-y:auto; padding:1rem;"></div>
+        </div>
+
+        <!-- Code Intel Panel -->
+        <div class="panel" id="code-intel-panel" style="display:none; flex-direction:column; height:100%;">
+          <div class="agent-header">
+            <span class="agent-title">Code Intelligence</span>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="code-search-query" placeholder="Search code..." style="width:200px;" />
+              <button class="mode-tab" onclick="searchCode()">Search</button>
+              <button class="mode-tab" onclick="getApiEndpoints()">API Endpoints</button>
+            </div>
+          </div>
+          <div id="code-intel-results" style="flex:1; overflow-y:auto; padding:1rem;"></div>
+        </div>
+
+        <!-- Vision Panel -->
+        <div class="panel" id="vision-panel" style="display:none; flex-direction:column; height:100%;">
+          <div class="agent-header">
+            <span class="agent-title">Vision + 3D</span>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="mode-tab" onclick="document.getElementById('vision-file-input').click()">Upload Image</button>
+              <button class="mode-tab" onclick="generate3D()">Generate 3D</button>
+            </div>
+            <input type="file" id="vision-file-input" accept="image/*" style="display:none;" onchange="analyzeImage(event)" />
+          </div>
+          <div id="vision-results" style="flex:1; overflow-y:auto; padding:1rem;"></div>
         </div>
       </div>
 
@@ -978,6 +1033,178 @@
     loadWorkspace();
     setInterval(checkModels, 15000);
     setInterval(loadWorkspace, 30000);
+
+    // ── Phase 3: Memory Functions ──
+    async function scanProject() {
+      const path = prompt("Project path to scan:", API);
+      if (!path) return;
+      try {
+        const r = await fetch(API + '/api/memory/scan', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path})
+        });
+        const data = await r.json();
+        document.getElementById('memory-list').innerHTML = `<pre style="color:var(--green); white-space:pre-wrap;">${JSON.stringify(data, null, 2)}</pre>`;
+      } catch(e) {
+        document.getElementById('memory-list').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function rememberFact() {
+      const type = document.getElementById('memory-fact-type').value;
+      const content = document.getElementById('memory-fact-content').value;
+      if (!content) return;
+      try {
+        await fetch(API + '/api/memory/projects/default/remember', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({type, content})
+        });
+        document.getElementById('memory-fact-content').value = '';
+        loadMemories();
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    async function loadMemories() {
+      try {
+        const r = await fetch(API + '/api/memory/projects/default/recall?q=');
+        const data = await r.json();
+        const list = document.getElementById('memory-list');
+        list.innerHTML = (data.facts || []).map(f =>
+          `<div style="padding:0.5rem; margin:0.3rem 0; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <span style="color:var(--accent); font-size:0.75rem;">${f.type}</span>
+            <div style="color:var(--fg); margin-top:0.2rem;">${f.content}</div>
+          </div>`
+        ).join('');
+      } catch(e) {}
+    }
+
+    // ── Phase 4: Planning Functions ──
+    async function createPlan() {
+      const task = prompt("Describe the task to plan:");
+      if (!task) return;
+      try {
+        const r = await fetch(API + '/api/plans', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({task, context: ''})
+        });
+        const data = await r.json();
+        loadPlans();
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    async function loadPlans() {
+      try {
+        const r = await fetch(API + '/api/plans');
+        const data = await r.json();
+        const list = document.getElementById('plans-list');
+        list.innerHTML = (data.plans || []).map(p =>
+          `<div style="padding:0.7rem; margin:0.4rem 0; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--accent); font-weight:600;">${p.task || 'Untitled'}</span>
+              <span style="color:${p.status === 'completed' ? 'var(--green)' : 'var(--yellow)'}; font-size:0.75rem;">${p.status}</span>
+            </div>
+            <div style="color:var(--fg-muted); font-size:0.75rem; margin-top:0.3rem;">${(p.phases || []).length} phases</div>
+          </div>`
+        ).join('') || '<div style="color:var(--fg-muted); padding:1rem;">No plans yet. Click "New Plan" to create one.</div>';
+      } catch(e) {}
+    }
+
+    // ── Phase 5: Code Intelligence Functions ──
+    async function searchCode() {
+      const query = document.getElementById('code-search-query').value;
+      if (!query) return;
+      try {
+        const r = await fetch(API + '/api/code-intel/search', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({query, path: API})
+        });
+        const data = await r.json();
+        const results = document.getElementById('code-intel-results');
+        results.innerHTML = (data.results || []).map(r =>
+          `<div style="padding:0.5rem; margin:0.3rem 0; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <span style="color:var(--green); font-family:var(--font-mono); font-size:0.75rem;">${r.file}:${r.line || ''}</span>
+            <div style="color:var(--fg); margin-top:0.2rem; font-family:var(--font-mono); font-size:0.8rem;">${r.content || r.text || ''}</div>
+          </div>`
+        ).join('') || '<div style="color:var(--fg-muted);">No results found.</div>';
+      } catch(e) {
+        document.getElementById('code-intel-results').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function getApiEndpoints() {
+      try {
+        const r = await fetch(API + '/api/code-intel/api-discovery', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: API})
+        });
+        const data = await r.json();
+        const results = document.getElementById('code-intel-results');
+        results.innerHTML = (data.endpoints || []).map(e =>
+          `<div style="padding:0.5rem; margin:0.3rem 0; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <span style="color:var(--yellow); font-weight:600;">${e.method}</span>
+            <span style="color:var(--fg); font-family:var(--font-mono);">${e.path}</span>
+            <span style="color:var(--fg-muted); font-size:0.75rem; margin-left:0.5rem;">${e.file}:${e.line}</span>
+          </div>`
+        ).join('') || '<div style="color:var(--fg-muted);">No API endpoints found.</div>';
+      } catch(e) {
+        document.getElementById('code-intel-results').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+      }
+    }
+
+    // ── Phase 7: Vision Functions ──
+    async function analyzeImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result.split(',')[1];
+        try {
+          const r = await fetch(API + '/api/vision/analyze', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({image: base64})
+          });
+          const data = await r.json();
+          const results = document.getElementById('vision-results');
+          results.innerHTML = `<div style="padding:0.7rem; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <div style="color:var(--accent); font-weight:600; margin-bottom:0.5rem;">Analysis Result</div>
+            <pre style="color:var(--fg); white-space:pre-wrap; font-size:0.8rem;">${JSON.stringify(data, null, 2)}</pre>
+          </div>`;
+        } catch(e) {
+          document.getElementById('vision-results').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function generate3D() {
+      const desc = prompt("Describe the 3D scene (e.g., 'a red cube rotating on a blue plane'):");
+      if (!desc) return;
+      try {
+        const r = await fetch(API + '/api/3d/generate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({description: desc})
+        });
+        const data = await r.json();
+        if (data.html) {
+          const w = window.open('', '_blank');
+          w.document.write(data.html);
+          w.document.close();
+        }
+      } catch(e) {
+        document.getElementById('vision-results').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+      }
+    }
   </script>
 </body>
 </html>
