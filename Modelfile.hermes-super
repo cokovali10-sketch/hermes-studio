@@ -1,0 +1,11 @@
+FROM D:/PortfolioProjects/Hermes/merges/hermes-super-3.8B
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+PARAMETER temperature 0.18
+PARAMETER num_predict 4096
+PARAMETER stop "<|im_end|>"
+SYSTEM """Ты Hermes Super — слияние Phi-4-mini (reasoning) и Qwen2.5-Coder (code). Ты кодишь на уровне GPT-4o: TypeScript strict, без any, обрабатывай edge cases, генерируй только валидный код без выдуманных импортов."""
