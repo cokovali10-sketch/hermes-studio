@@ -21,7 +21,7 @@
 
 ## What is this?
 
-Hermes Studio v3 is an **autonomous AI agent** that builds complete software projects on your disk. External or local AI is the "brain", Hermes is its "hands".
+Hermes Studio v5 is an **autonomous AI agent** that builds complete software projects on your disk. External or local AI is the "brain", Hermes is its "hands".
 
 | Model | Purpose | Size |
 |-------|---------|------|
@@ -37,25 +37,23 @@ Hermes Studio v3 is an **autonomous AI agent** that builds complete software pro
 
 ## Features
 
-### Agent Toolkit (16 Tools + Plugins)
-| Tool | Description |
-|------|-------------|
-| `workspace_file_ops` | Read, write, create, delete, list, grep, search_replace, read_lines |
-| `execute_shell_command` | Run `npm install`, `pytest`, `tsc`, etc. with timeout |
-| `git_checkpoint` | Auto-commit after each successful step |
-| `analyze_project_structure` | Scan directory tree to understand architecture |
-| `capture_screenshot` | Take screenshots of screen/window for visual analysis |
-| `read_image` | Read images from disk for vision model analysis |
-| `search_code` | Regex search across codebase with context lines |
-| `run_python` | Execute Python code directly |
-| `fetch_url` | HTTP GET/POST to URLs |
-| `diff_apply` | Apply unified diffs to files |
-| `kill_process` | Kill processes by name or PID |
-| `env_info` | System info (OS, Python, packages, disk) |
-| `list_templates` | List project templates |
-| `scaffold_project` | Create project from template (react-ts, python-fastapi, node-express, static-html) |
-| `done` | Signal task completion with summary |
-| `get_weather` | Weather lookup (plugin example) |
+### Agent Toolkit — 100 Tools
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Core (15)** | `workspace_file_ops`, `execute_shell_command`, `git_checkpoint`, `analyze_project_structure`, `capture_screenshot`, `read_image`, `search_code`, `run_python`, `fetch_url`, `diff_apply`, `kill_process`, `env_info`, `list_templates`, `scaffold_project`, `done` | File ops, shell, git, search, vision |
+| **Docker (10)** | `docker_build`, `docker_run`, `docker_stop`, `docker_list`, `docker_logs`, `docker_compose`, `docker_images`, `docker_exec`, `docker_stats`, `docker_clean` | Full container lifecycle management |
+| **Security (10)** | `scan_secrets`, `scan_dependencies`, `check_ssl`, `port_scan`, `hash_file`, `check_headers`, `vuln_scan`, `check_permissions`, `generate_secret`, `audit_env` | Secret scanning, SSL checks, vuln analysis |
+| **Profiling (8)** | `profile_function`, `benchmark_file`, `measure_time`, `memory_usage`, `cpu_info`, `disk_speed`, `network_latency`, `find_slow_code` | Performance profiling & bottleneck detection |
+| **Database (8)** | `db_query`, `db_schema`, `db_backup`, `db_analyze`, `db_create_table`, `db_insert`, `db_export_csv`, `db_optimize` | SQL query, schema inspection, CSV export |
+| **API Testing (10)** | `api_get`, `api_post`, `api_put`, `api_delete`, `api_patch`, `api_benchmark`, `api_validate`, `graphql_query`, `websocket_test`, `api_mock` | REST/GraphQL/WebSocket testing & mocking |
+| **Documentation (8)** | `generate_readme`, `generate_changelog`, `generate_api_docs`, `generate_docstring`, `analyze_code_quality`, `find_todos`, `count_lines`, `generate_type_hints` | Auto-generate docs, analyze code quality |
+| **Git Advanced (8)** | `git_log`, `git_diff`, `git_branch`, `git_blame`, `git_stash`, `git_stats`, `git_search`, `git_file_history` | Deep git history, blame, stats, search |
+| **Backup (6)** | `backup_directory`, `restore_backup`, `list_backups`, `sync_directories`, `cleanup_old_files`, `find_duplicates` | Backup, sync, deduplication |
+| **Migration (7)** | `csv_to_json`, `json_to_csv`, `xml_to_json`, `json_transform`, `merge_json`, `split_file`, `encode_decode` | Data format conversion & transformation |
+| **Kubernetes (10)** | `k8s_get_pods`, `k8s_get_services`, `k8s_describe`, `k8s_logs`, `k8s_exec`, `k8s_scale`, `k8s_apply`, `k8s_delete`, `k8s_events`, `k8s_context` | K8s cluster management & introspection |
+
+**Total: 100 tools** across 11 categories — extensible via plugin system.
 
 ### Core
 - **Agent Loop** — iterative tool calling with OpenAI/Ollama compatible JSON Schema
@@ -161,18 +159,38 @@ Agent calls: done(summary="React todo app created with TypeScript, Tailwind CSS"
 
 ```
 hermes-studio/
-├── launch.py          # Single-instance launcher
-├── server.py          # Backend + Agent Loop + Tool Dispatcher
-├── setup_models.py    # Model downloader
-├── config.json        # Configuration
-├── requirements.txt   # Python dependencies
-├── Hermes.bat         # One-click launcher
+├── launch.py              # Single-instance launcher
+├── server.py              # Backend + Agent Loop + Tool Dispatcher
+├── setup_models.py        # Model downloader
+├── config.json            # Configuration
+├── requirements.txt       # Python dependencies
+├── Hermes.bat             # One-click launcher
 ├── frontend/
-│   └── index.html     # Glassmorphism UI + Agent Stream
-├── workspace/         # Agent builds projects here
-├── backups/           # Auto-backups before file overwrites
+│   └── index.html         # Glassmorphism UI + Agent Stream
+├── hermes/                # Core package (12 modules)
+│   ├── server.py          # aiohttp server, 30+ API endpoints
+│   ├── agent.py           # Agent loop engine
+│   ├── tools.py           # 100 tool registry + dispatcher
+│   ├── tools_docker.py    # 10 Docker management tools
+│   ├── tools_security.py  # 10 security scanning tools
+│   ├── tools_profiling.py # 8 performance profiling tools
+│   ├── tools_database.py  # 8 database operation tools
+│   ├── tools_apitest.py   # 10 API testing tools
+│   ├── tools_docs.py      # 8 documentation generation tools
+│   ├── tools_git_advanced.py # 8 advanced git tools
+│   ├── tools_backup.py    # 6 backup & sync tools
+│   ├── tools_migration.py # 7 data migration tools
+│   ├── tools_kubernetes.py # 10 Kubernetes management tools
+│   ├── core.py            # Config, constants, paths
+│   ├── router.py          # Request routing
+│   ├── ollama.py          # Ollama client
+│   ├── safety.py          # Safety rules engine
+│   ├── bus.py             # Event bus (SSE)
+│   └── templates.py       # Project templates
+├── workspace/             # Agent builds projects here
+├── backups/               # Auto-backups before file overwrites
 └── screenshots/
-    └── main.png       # App screenshot
+    └── main.png           # App screenshot
 ```
 
 ---

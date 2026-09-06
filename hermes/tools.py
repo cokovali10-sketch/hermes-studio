@@ -840,6 +840,62 @@ TOOL_MAP = {
     "done": tool_done,
 }
 
+
+def _wrap_module_tool(fn):
+    """Wrap a tool function from a module (takes args dict, returns JSON string) to
+    work with call_tool's **kwargs dispatch and dict-return convention."""
+    import json as _json
+    async def wrapper(**kwargs):
+        raw = await fn(kwargs)
+        if isinstance(raw, str):
+            try:
+                return _json.loads(raw)
+            except Exception:
+                return {"result": raw, "success": True}
+        return raw
+    wrapper.__name__ = fn.__name__
+    return wrapper
+
+
+def _register_tool_module(module_name: str):
+    """Import a tool module, convert its schemas, wrap its functions, register them."""
+    import importlib
+    mod = importlib.import_module(f"hermes.{module_name}")
+    for tool_def in mod.TOOLS:
+        name = tool_def["name"]
+        TOOLS_SCHEMA.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": tool_def.get("description", ""),
+                "parameters": tool_def.get("parameters", {"type": "object", "properties": {}}),
+            }
+        })
+        fn = mod.functions.get(name)
+        if fn:
+            TOOL_MAP[name] = _wrap_module_tool(fn)
+
+
+_tool_modules = [
+    "tools_docker",
+    "tools_security",
+    "tools_profiling",
+    "tools_database",
+    "tools_apitest",
+    "tools_docs",
+    "tools_git_advanced",
+    "tools_backup",
+    "tools_migration",
+    "tools_kubernetes",
+]
+
+for _mod_name in _tool_modules:
+    try:
+        _register_tool_module(_mod_name)
+    except Exception as _e:
+        print(f"[Hermes] Failed to load tool module {_mod_name}: {_e}")
+
+
 _tool_call_count = 0
 _tool_calls_by_name = {}
 _tool_call_times = []
