@@ -88,6 +88,56 @@ async def index_handler(request):
     return web.Response(text="Frontend not found", status=404)
 
 
+async def classify_handler(request):
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    from hermes.tool_router import classify_request, get_relevant_tools
+    classification = classify_request(prompt)
+    tools = get_relevant_tools(prompt)
+    return web.json_response({"classification": classification, "tools": tools})
+
+
+async def workflows_handler(request):
+    from hermes.workflows import get_all_workflows
+    return web.json_response({"workflows": get_all_workflows()})
+
+
+async def workflow_match_handler(request):
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    from hermes.workflows import match_workflow, render_workflow_for_model
+    wf = match_workflow(prompt)
+    if wf:
+        return web.json_response({
+            "matched": True,
+            "id": wf["id"],
+            "name": wf["name"],
+            "description": wf["description"],
+            "steps": len(wf["steps"]),
+            "instructions": render_workflow_for_model(wf),
+        })
+    return web.json_response({"matched": False})
+
+
+async def plan_handler(request):
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    from hermes.planner import create_plan, render_plan_for_model
+    plan = create_plan(prompt)
+    return web.json_response({
+        "plan": plan,
+        "rendered": render_plan_for_model(plan, prompt),
+    })
+
+
+async def tools_filtered_handler(request):
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    from hermes.tool_router import get_tool_schemas
+    schemas = get_tool_schemas(prompt, TOOLS_SCHEMA)
+    return web.json_response({"tools": schemas, "count": len(schemas)})
+
+
 async def health_handler(request):
     ollama_ok = await ollama.is_available()
     return web.json_response({
@@ -662,6 +712,12 @@ def create_app():
         web.get("/api/performance", performance_handler),
         web.get("/api/errors/patterns", error_patterns_handler),
         web.get("/api/models/score", model_score_handler),
+        # Phase 9: Smart Agent (tool routing, workflows, planning)
+        web.post("/api/classify", classify_handler),
+        web.get("/api/workflows", workflows_handler),
+        web.post("/api/workflows/match", workflow_match_handler),
+        web.post("/api/plan", plan_handler),
+        web.post("/api/tools/filtered", tools_filtered_handler),
     ]
     for route in routes:
         cors.add(app.router.add_route(route.method, route.path, route.handler))
