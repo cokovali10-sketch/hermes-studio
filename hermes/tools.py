@@ -887,6 +887,10 @@ _tool_modules = [
     "tools_backup",
     "tools_migration",
     "tools_kubernetes",
+    "tools_monitoring",
+    "tools_automation",
+    "tools_ai",
+    "tools_web",
 ]
 
 for _mod_name in _tool_modules:
