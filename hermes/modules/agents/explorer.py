@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import re
 
-from hermes.core import WORKSPACE_DIR
 from hermes.modules.agents.base import BaseAgent
 from hermes.modules.agents.message import MessageType
+# --- константы вынесены FORGE refactor ---
+CONST_4 = 4
+
 
 
 class ExplorerAgent(BaseAgent):
@@ -15,7 +17,7 @@ class ExplorerAgent(BaseAgent):
     async def run(self) -> dict:
         from hermes.tools import tool_analyze_project_structure, tool_search_code
 
-        structure = await tool_analyze_project_structure(path=".", max_depth=4)
+        structure = await tool_analyze_project_structure(path=".", max_depth=CONST_4)
         if not structure.get("success"):
             return {"error": structure.get("error", "Failed to analyze project"), "success": False}
 
@@ -68,7 +70,7 @@ class ExplorerAgent(BaseAgent):
                 for ext, lang in ext_map.items():
                     if node.get("name", "").endswith(ext):
                         counts[lang] = counts.get(lang, 0) + 1
-            elif node["type"] == "dir" and depth < 4:
+            elif node["type"] == "dir" and depth < CONST_4:
                 for lang, c in self._count_langs(node.get("children", []), ext_map, depth + 1).items():
                     counts[lang] = counts.get(lang, 0) + c
         return sorted(counts, key=lambda k: counts[k], reverse=True)
@@ -80,7 +82,7 @@ class ExplorerAgent(BaseAgent):
                 for ext, lang in ext_map.items():
                     if node.get("name", "").endswith(ext):
                         counts[lang] = counts.get(lang, 0) + 1
-            elif node["type"] == "dir" and depth < 4:
+            elif node["type"] == "dir" and depth < CONST_4:
                 for lang, c in self._count_langs(node.get("children", []), ext_map, depth + 1).items():
                     counts[lang] = counts.get(lang, 0) + c
         return counts

@@ -1,16 +1,13 @@
 """Coordinator agent — orchestrates other agents."""
 from __future__ import annotations
 
-import asyncio
-import time
 
 from hermes.bus import bus
-from hermes.modules.agents.base import BaseAgent, AgentStatus
+from hermes.modules.agents.base import BaseAgent
 from hermes.modules.agents.explorer import ExplorerAgent
 from hermes.modules.agents.coder import CoderAgent
 from hermes.modules.agents.tester import TesterAgent
 from hermes.modules.agents.reviewer import ReviewerAgent
-from hermes.modules.agents.message import MessageType
 
 
 class CoordinatorAgent(BaseAgent):

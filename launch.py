@@ -17,6 +17,10 @@ import urllib.request
 import ctypes
 import signal
 import atexit
+# --- константы вынесены FORGE refactor ---
+CONST_200 = 200
+CONST_134217728 = 134217728
+
 
 ROOT = pathlib.Path(__file__).parent
 OLLAMA_DIR = ROOT / ".ollama"
@@ -60,7 +64,7 @@ def _set_ollama_env():
 def server_ready():
     try:
         with urllib.request.urlopen(f"{URL}/api/health", timeout=2) as r:
-            return r.status == 200
+            return r.status == CONST_200
     except Exception:
         return False
 
@@ -68,7 +72,7 @@ def server_ready():
 def ollama_running():
     try:
         with urllib.request.urlopen(f"{OLLAMA_HOST}/api/tags", timeout=2) as r:
-            return r.status == 200
+            return r.status == CONST_200
     except Exception:
         return False
 
@@ -92,7 +96,7 @@ def start_ollama():
             [str(OLLAMA_EXE), "serve"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=0x08000000,
+            creationflags=CONST_134217728,
             close_fds=False,
         )
     except Exception as e:
@@ -116,7 +120,7 @@ def start_server():
     _server_proc = subprocess.Popen(
         [exe, str(ROOT / "server.py")],
         cwd=str(ROOT),
-        creationflags=0x08000000,
+        creationflags=CONST_134217728,
         close_fds=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -135,7 +139,7 @@ def open_window():
             try:
                 _browser_proc = subprocess.Popen(
                     [exe, f"--app={URL}/", "--window-size=1400,900"],
-                    creationflags=0x08000000,
+                    creationflags=CONST_134217728,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )

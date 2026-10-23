@@ -1,9 +1,16 @@
 """Productivity tools for Hermes agent."""
-import asyncio
 import json
 import pathlib
 import time
 from datetime import datetime
+# --- константы вынесены FORGE refactor ---
+CONST_5 = 5
+CONST_25 = 25
+CONST_30 = 30
+CONST_60 = 60
+CONST_1000 = 1000
+CONST_3600 = 3600
+
 
 TOOLS = [
     {"name": "create_note", "description": "Create a markdown note file", "parameters": {"type": "object", "properties": {"title": {"type": "string", "description": "Note title (used as filename)"}, "content": {"type": "string", "description": "Markdown content"}, "folder": {"type": "string", "description": "Subfolder inside notes directory", "default": "notes"}}, "required": ["title", "content"]}},
@@ -12,10 +19,10 @@ TOOLS = [
     {"name": "list_reminders", "description": "List all active reminders", "parameters": {"type": "object", "properties": {"include_past": {"type": "boolean", "default": False}}}},
     {"name": "create_todo", "description": "Create a todo item", "parameters": {"type": "object", "properties": {"title": {"type": "string", "description": "Todo title"}, "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"], "default": "medium"}, "due": {"type": "string", "description": "Due date (ISO format)"}, "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags for categorization"}}, "required": ["title"]}},
     {"name": "list_todos", "description": "List todo items with optional filters", "parameters": {"type": "object", "properties": {"status": {"type": "string", "enum": ["pending", "done", "all"], "default": "all"}, "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]}, "tag": {"type": "string", "description": "Filter by tag"}}}},
-    {"name": "pomodoro_start", "description": "Start a Pomodoro timer (25 min work + 5 min break)", "parameters": {"type": "object", "properties": {"work_minutes": {"type": "integer", "default": 25}, "break_minutes": {"type": "integer", "default": 5}, "task": {"type": "string", "description": "Task name for this session"}}}},
+    {"name": "pomodoro_start", "description": "Start a Pomodoro timer (25 min work + 5 min break)", "parameters": {"type": "object", "properties": {"work_minutes": {"type": "integer", "default": CONST_25}, "break_minutes": {"type": "integer", "default": CONST_5}, "task": {"type": "string", "description": "Task name for this session"}}}},
     {"name": "timer_start", "description": "Start a countdown timer", "parameters": {"type": "object", "properties": {"duration": {"type": "string", "description": "Duration (e.g. '5m', '1h30m', '90s')"}, "label": {"type": "string", "description": "Timer label"}}, "required": ["duration"]}},
     {"name": "calendar_add", "description": "Add a calendar event to a local ICS file", "parameters": {"type": "object", "properties": {"title": {"type": "string", "description": "Event title"}, "start": {"type": "string", "description": "Start datetime (ISO format)"}, "end": {"type": "string", "description": "End datetime (ISO format)"}, "description": {"type": "string"}, "file": {"type": "string", "description": "ICS file path", "default": "calendar.ics"}}, "required": ["title", "start", "end"]}},
-    {"name": "calendar_list", "description": "List upcoming events from ICS calendar file", "parameters": {"type": "object", "properties": {"file": {"type": "string", "default": "calendar.ics"}, "days": {"type": "integer", "description": "How many days ahead to look", "default": 30}}}},
+    {"name": "calendar_list", "description": "List upcoming events from ICS calendar file", "parameters": {"type": "object", "properties": {"file": {"type": "string", "default": "calendar.ics"}, "days": {"type": "integer", "description": "How many days ahead to look", "default": CONST_30}}}},
 ]
 
 functions = {}
@@ -71,10 +78,10 @@ async def create_reminder(args):
     now = datetime.now()
     if time_str.endswith("m"):
         mins = int(time_str[:-1])
-        trigger = now.timestamp() + mins * 60
+        trigger = now.timestamp() + mins * CONST_60
     elif time_str.endswith("h"):
         hours = int(time_str[:-1])
-        trigger = now.timestamp() + hours * 3600
+        trigger = now.timestamp() + hours * CONST_3600
     elif time_str.endswith("s"):
         secs = int(time_str[:-1])
         trigger = now.timestamp() + secs
@@ -82,7 +89,7 @@ async def create_reminder(args):
         trigger = datetime.fromisoformat(time_str).timestamp()
     reminders = _load_json("reminders.json", [])
     reminder = {
-        "id": int(time.time() * 1000),
+        "id": int(time.time() * CONST_1000),
         "message": message,
         "trigger_at": trigger,
         "trigger_human": datetime.fromtimestamp(trigger).isoformat(),
@@ -105,7 +112,7 @@ async def list_reminders(args):
 async def create_todo(args):
     title = args["title"]
     todo = {
-        "id": int(time.time() * 1000),
+        "id": int(time.time() * CONST_1000),
         "title": title,
         "priority": args.get("priority", "medium"),
         "due": args.get("due"),
@@ -132,8 +139,8 @@ async def list_todos(args):
     return json.dumps({"success": True, "todos": todos, "count": len(todos)})
 
 async def pomodoro_start(args):
-    work = args.get("work_minutes", 25)
-    brk = args.get("break_minutes", 5)
+    work = args.get("work_minutes", CONST_25)
+    brk = args.get("break_minutes", CONST_5)
     task = args.get("task", "Focus session")
     return json.dumps({
         "success": True,
@@ -150,11 +157,11 @@ async def timer_start(args):
     total_secs = 0
     if "h" in duration:
         parts = duration.split("h")
-        total_secs += int(parts[0]) * 3600
+        total_secs += int(parts[0]) * CONST_3600
         duration = parts[1]
     if "m" in duration:
         parts = duration.split("m")
-        total_secs += int(parts[0]) * 60
+        total_secs += int(parts[0]) * CONST_60
         duration = parts[1]
     if "s" in duration:
         total_secs += int(duration.replace("s", ""))
@@ -172,7 +179,7 @@ async def calendar_add(args):
     end = args["end"]
     desc = args.get("description", "")
     cal_file = _data_file(args.get("file", "calendar.ics"))
-    uid = f"{int(time.time()*1000)}@hermes"
+    uid = f"{int(time.time()*CONST_1000)}@hermes"
     event = f"""BEGIN:VEVENT
 UID:{uid}
 DTSTART:{_ical_dt(start)}
@@ -194,7 +201,7 @@ END:VCALENDAR"""
 
 async def calendar_list(args):
     cal_file = _data_file(args.get("file", "calendar.ics"))
-    days = args.get("days", 30)
+    days = args.get("days", CONST_30)
     if not cal_file.exists():
         return json.dumps({"success": True, "events": [], "count": 0})
     content = cal_file.read_text(encoding="utf-8")

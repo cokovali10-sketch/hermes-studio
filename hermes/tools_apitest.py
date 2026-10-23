@@ -2,6 +2,12 @@
 import asyncio
 import json
 import time
+# --- константы вынесены FORGE refactor ---
+CONST_5 = 5
+CONST_200 = 200
+CONST_1000 = 1000
+CONST_8888 = 8888
+
 
 TOOLS = [
     {"name": "api_get", "description": "Make GET request to API endpoint", "parameters": {"type": "object", "properties": {"url": {"type": "string", "description": "API URL"}, "headers": {"type": "object", "description": "HTTP headers"}, "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 10}}, "required": ["url"]}},
@@ -10,10 +16,10 @@ TOOLS = [
     {"name": "api_delete", "description": "Make DELETE request to API endpoint", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "headers": {"type": "object"}}, "required": ["url"]}},
     {"name": "api_patch", "description": "Make PATCH request to API endpoint", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "data": {"type": "string"}, "headers": {"type": "object"}}, "required": ["url"]}},
     {"name": "api_benchmark", "description": "Benchmark API endpoint with multiple requests", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "method": {"type": "string", "default": "GET"}, "requests": {"type": "integer", "description": "Number of requests", "default": 10}, "concurrency": {"type": "integer", "default": 1}}, "required": ["url"]}},
-    {"name": "api_validate", "description": "Validate API response against expected schema", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "expected_status": {"type": "integer", "default": 200}, "expected_fields": {"type": "array", "items": {"type": "string"}}}, "required": ["url"]}},
+    {"name": "api_validate", "description": "Validate API response against expected schema", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "expected_status": {"type": "integer", "default": CONST_200}, "expected_fields": {"type": "array", "items": {"type": "string"}}}, "required": ["url"]}},
     {"name": "graphql_query", "description": "Execute GraphQL query", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "query": {"type": "string"}, "variables": {"type": "string", "description": "JSON variables"}}, "required": ["url", "query"]}},
-    {"name": "websocket_test", "description": "Test WebSocket connection", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "message": {"type": "string", "description": "Message to send"}, "timeout": {"type": "integer", "default": 5}}, "required": ["url"]}},
-    {"name": "api_mock", "description": "Start a simple mock API server", "parameters": {"type": "object", "properties": {"port": {"type": "integer", "default": 8888}, "routes": {"type": "string", "description": "JSON routes config"}}, "required": ["routes"]}},
+    {"name": "websocket_test", "description": "Test WebSocket connection", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "message": {"type": "string", "description": "Message to send"}, "timeout": {"type": "integer", "default": CONST_5}}, "required": ["url"]}},
+    {"name": "api_mock", "description": "Start a simple mock API server", "parameters": {"type": "object", "properties": {"port": {"type": "integer", "default": CONST_8888}, "routes": {"type": "string", "description": "JSON routes config"}}, "required": ["routes"]}},
 ]
 
 functions = {}
@@ -40,15 +46,15 @@ async def _make_request(method, url, headers=None, data=None, timeout=10):
             json_body = body
         return {
             "status": resp.status, "headers": dict(resp.headers),
-            "body": json_body, "time_ms": round(elapsed * 1000, 2),
+            "body": json_body, "time_ms": round(elapsed * CONST_1000, 2),
             "size_bytes": len(body),
         }
     except urllib.error.HTTPError as e:
         elapsed = time.time() - start
-        return {"status": e.code, "error": str(e), "time_ms": round(elapsed * 1000, 2)}
+        return {"status": e.code, "error": str(e), "time_ms": round(elapsed * CONST_1000, 2)}
     except Exception as e:
         elapsed = time.time() - start
-        return {"error": str(e), "time_ms": round(elapsed * 1000, 2)}
+        return {"error": str(e), "time_ms": round(elapsed * CONST_1000, 2)}
 
 async def api_get(args):
     result = await _make_request("GET", args["url"], args.get("headers"), timeout=args.get("timeout", 10))
@@ -100,7 +106,7 @@ async def api_benchmark(args):
 
 async def api_validate(args):
     url = args["url"]
-    expected_status = args.get("expected_status", 200)
+    expected_status = args.get("expected_status", CONST_200)
     expected_fields = args.get("expected_fields", [])
 
     result = await _make_request("GET", url)
@@ -128,7 +134,7 @@ async def graphql_query(args):
 async def websocket_test(args):
     url = args["url"]
     message = args.get("message", "Hello")
-    timeout = args.get("timeout", 5)
+    timeout = args.get("timeout", CONST_5)
 
     try:
         import websockets
@@ -142,7 +148,7 @@ async def websocket_test(args):
         return json.dumps({"error": str(e)})
 
 async def api_mock(args):
-    port = args.get("port", 8888)
+    port = args.get("port", CONST_8888)
     routes = json.loads(args.get("routes", "{}"))
 
     mock_code = f"""

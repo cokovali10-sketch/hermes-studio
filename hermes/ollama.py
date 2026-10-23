@@ -4,6 +4,11 @@ import json
 import aiohttp
 
 from hermes.core import OLLAMA_HOST, MODEL_VISION, MODEL_CODING, MODEL_REASONING
+# --- константы вынесены FORGE refactor ---
+CONST_5 = 5
+CONST_120 = 120
+CONST_300 = 300
+
 
 
 class Ollama:
@@ -11,12 +16,12 @@ class Ollama:
         self.host = host
         self._available = None
 
-    async def _get(self, path, timeout_s=5):
+    async def _get(self, path, timeout_s=CONST_5):
         async with aiohttp.ClientSession() as s:
             async with s.get(f"{self.host}{path}", timeout=aiohttp.ClientTimeout(total=timeout_s)) as r:
                 return r.status, await r.json()
 
-    async def _post(self, path, payload, timeout_s=120):
+    async def _post(self, path, payload, timeout_s=CONST_120):
         async with aiohttp.ClientSession() as s:
             async with s.post(
                 f"{self.host}{path}", json=payload,
@@ -24,7 +29,7 @@ class Ollama:
             ) as r:
                 return r.status, await r.json()
 
-    async def _post_stream(self, path, payload, timeout_s=120):
+    async def _post_stream(self, path, payload, timeout_s=CONST_120):
         async with aiohttp.ClientSession() as s:
             async with s.post(
                 f"{self.host}{path}", json=payload,
@@ -51,7 +56,7 @@ class Ollama:
 
     async def list_models(self):
         try:
-            _, data = await self._get("/api/tags", timeout_s=5)
+            _, data = await self._get("/api/tags", timeout_s=CONST_5)
             return [m["name"] for m in data.get("models", [])]
         except Exception:
             return []
@@ -69,7 +74,7 @@ class Ollama:
         if images:
             payload["images"] = images
         try:
-            _, data = await self._post("/api/generate", payload, timeout_s=300)
+            _, data = await self._post("/api/generate", payload, timeout_s=CONST_300)
             return data.get("response", "")
         except Exception as e:
             print(f"[Ollama] generate({model}) error: {e}")
@@ -82,7 +87,7 @@ class Ollama:
         if images:
             payload["images"] = images
         try:
-            async for chunk in self._post_stream("/api/generate", payload, timeout_s=300):
+            async for chunk in self._post_stream("/api/generate", payload, timeout_s=CONST_300):
                 text = chunk.get("response", "")
                 if text:
                     yield text
@@ -96,7 +101,7 @@ class Ollama:
         if tools:
             payload["tools"] = tools
         try:
-            async for chunk in self._post_stream("/api/chat", payload, timeout_s=300):
+            async for chunk in self._post_stream("/api/chat", payload, timeout_s=CONST_300):
                 yield chunk
         except Exception as e:
             yield {"error": str(e)}

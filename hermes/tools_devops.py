@@ -2,6 +2,14 @@
 import asyncio
 import json
 import shutil
+# --- константы вынесены FORGE refactor ---
+CONST_4 = 4
+CONST_30 = 30
+CONST_120 = 120
+CONST_300 = 300
+CONST_443 = 443
+CONST_5000 = 5000
+
 
 TOOLS = [
     {"name": "terraform_init", "description": "Initialize a Terraform working directory", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Path to Terraform directory", "default": "."}}}},
@@ -11,14 +19,14 @@ TOOLS = [
     {"name": "ansible_inventory", "description": "List Ansible inventory hosts", "parameters": {"type": "object", "properties": {"inventory": {"type": "string", "description": "Inventory file path"}, "list": {"type": "boolean", "default": True}}}},
     {"name": "nginx_test", "description": "Test Nginx configuration syntax", "parameters": {"type": "object", "properties": {"config_path": {"type": "string", "description": "Path to nginx.conf (optional)"}}}},
     {"name": "nginx_reload", "description": "Reload Nginx configuration without downtime", "parameters": {"type": "object", "properties": {}}},
-    {"name": "ssl_check", "description": "Check SSL certificate details for a domain", "parameters": {"type": "object", "properties": {"domain": {"type": "string", "description": "Domain to check"}, "port": {"type": "integer", "default": 443}}, "required": ["domain"]}},
+    {"name": "ssl_check", "description": "Check SSL certificate details for a domain", "parameters": {"type": "object", "properties": {"domain": {"type": "string", "description": "Domain to check"}, "port": {"type": "integer", "default": CONST_443}}, "required": ["domain"]}},
     {"name": "dns_lookup", "description": "Perform DNS lookup for a domain", "parameters": {"type": "object", "properties": {"domain": {"type": "string", "description": "Domain to look up"}, "record_type": {"type": "string", "enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"], "default": "A"}}, "required": ["domain"]}},
-    {"name": "traceroute", "description": "Trace the network route to a host", "parameters": {"type": "object", "properties": {"host": {"type": "string", "description": "Target host"}, "max_hops": {"type": "integer", "default": 30}}, "required": ["host"]}},
+    {"name": "traceroute", "description": "Trace the network route to a host", "parameters": {"type": "object", "properties": {"host": {"type": "string", "description": "Target host"}, "max_hops": {"type": "integer", "default": CONST_30}}, "required": ["host"]}},
 ]
 
 functions = {}
 
-async def _run_cmd(cmd, timeout=120):
+async def _run_cmd(cmd, timeout=CONST_120):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
     )
@@ -30,7 +38,7 @@ async def terraform_init(args):
     if not shutil.which("terraform"):
         return json.dumps({"error": "terraform not found in PATH", "success": False})
     try:
-        code, output = await _run_cmd(["terraform", "init"], timeout=120)
+        code, output = await _run_cmd(["terraform", "init"], timeout=CONST_120)
         return json.dumps({"success": code == 0, "output": output[-3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -42,7 +50,7 @@ async def terraform_plan(args):
         cmd.extend(["-var-file", args["var_file"]])
     try:
         code, output = await _run_cmd(cmd, timeout=180)
-        return json.dumps({"success": code == 0, "output": output[-5000:]})
+        return json.dumps({"success": code == 0, "output": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -54,8 +62,8 @@ async def terraform_apply(args):
     if args.get("var_file"):
         cmd.extend(["-var-file", args["var_file"]])
     try:
-        code, output = await _run_cmd(cmd, timeout=300)
-        return json.dumps({"success": code == 0, "output": output[-5000:]})
+        code, output = await _run_cmd(cmd, timeout=CONST_300)
+        return json.dumps({"success": code == 0, "output": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -69,8 +77,8 @@ async def ansible_playbook(args):
     if args.get("tags"):
         cmd.extend(["--tags", args["tags"]])
     try:
-        code, output = await _run_cmd(cmd, timeout=300)
-        return json.dumps({"success": code == 0, "output": output[-5000:]})
+        code, output = await _run_cmd(cmd, timeout=CONST_300)
+        return json.dumps({"success": code == 0, "output": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -81,8 +89,8 @@ async def ansible_inventory(args):
     if args.get("inventory"):
         cmd.extend(["-i", args["inventory"]])
     try:
-        code, output = await _run_cmd(cmd, timeout=30)
-        return json.dumps({"success": code == 0, "inventory": output[-5000:]})
+        code, output = await _run_cmd(cmd, timeout=CONST_30)
+        return json.dumps({"success": code == 0, "inventory": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -107,7 +115,7 @@ async def ssl_check(args):
     import ssl
     import socket
     domain = args["domain"]
-    port = args.get("port", 443)
+    port = args.get("port", CONST_443)
     try:
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
@@ -134,10 +142,10 @@ async def dns_lookup(args):
     try:
         if record_type == "A":
             results = socket.getaddrinfo(domain, None, socket.AF_INET)
-            addresses = list(set(r[4][0] for r in results))
+            addresses = list(set(r[CONST_4][0] for r in results))
         elif record_type == "AAAA":
             results = socket.getaddrinfo(domain, None, socket.AF_INET6)
-            addresses = list(set(r[4][0] for r in results))
+            addresses = list(set(r[CONST_4][0] for r in results))
         else:
             proc = await asyncio.create_subprocess_exec(
                 "nslookup", "-type=" + record_type, domain,
@@ -151,11 +159,11 @@ async def dns_lookup(args):
 
 async def traceroute(args):
     host = args["host"]
-    max_hops = args.get("max_hops", 30)
+    max_hops = args.get("max_hops", CONST_30)
     try:
         cmd = ["tracert", "-d", "-h", str(max_hops), host] if shutil.which("tracert") else ["traceroute", "-m", str(max_hops), host]
         code, output = await _run_cmd(cmd, timeout=60)
-        return json.dumps({"success": code == 0, "host": host, "output": output[-5000:]})
+        return json.dumps({"success": code == 0, "host": host, "output": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 

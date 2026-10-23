@@ -3,7 +3,10 @@ import asyncio
 import json
 import os
 import pathlib
-import time
+# --- константы вынесены FORGE refactor ---
+CONST_120 = 120
+CONST_200 = 200
+
 
 TOOLS = [
     {
@@ -178,7 +181,7 @@ async def list_s3_buckets(args):
 
     data = _parse_json_output(result["stdout"])
     if data is None:
-        return {"error": f"Failed to parse AWS output: {result['stdout'][:200]}", "success": False}
+        return {"error": f"Failed to parse AWS output: {result['stdout'][:CONST_200]}", "success": False}
 
     return {"success": True, "buckets": data, "count": len(data)}
 
@@ -196,7 +199,7 @@ async def upload_s3(args):
     if content_type:
         cmd.extend(["--content-type", content_type])
 
-    result = await _run_aws_cli(cmd, timeout=120)
+    result = await _run_aws_cli(cmd, timeout=CONST_120)
     if not result["success"]:
         return {"error": result.get("stderr") or result.get("error", "Upload failed"), "success": False}
 
@@ -213,7 +216,7 @@ async def download_s3(args):
 
     cmd = ["aws", "s3", "cp", f"s3://{bucket}/{key}", output_path]
 
-    result = await _run_aws_cli(cmd, timeout=120)
+    result = await _run_aws_cli(cmd, timeout=CONST_120)
     if not result["success"]:
         return {"error": result.get("stderr") or result.get("error", "Download failed"), "success": False}
 
@@ -240,7 +243,7 @@ async def list_ec2(args):
 
     data = _parse_json_output(result["stdout"])
     if data is None:
-        return {"error": f"Failed to parse output: {result['stdout'][:200]}", "success": False}
+        return {"error": f"Failed to parse output: {result['stdout'][:CONST_200]}", "success": False}
 
     instances = []
     for reservation in data:

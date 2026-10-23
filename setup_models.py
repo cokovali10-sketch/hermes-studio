@@ -9,6 +9,9 @@ import json
 import pathlib
 import urllib.request
 import time
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+
 
 ROOT = pathlib.Path(__file__).parent
 CFG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
@@ -26,7 +29,7 @@ MODELS = [
 def ollama_running():
     try:
         req = urllib.request.Request(f"{OLLAMA_HOST}/api/tags")
-        with urllib.request.urlopen(req, timeout=3) as r:
+        with urllib.request.urlopen(req, timeout=CONST_3) as r:
             return r.status == 200
     except Exception:
         return False
@@ -88,7 +91,7 @@ def main():
             stderr=subprocess.DEVNULL,
         )
         import time
-        time.sleep(3)
+        time.sleep(CONST_3)
         if not ollama_running():
             print("  Could not start Ollama. Start manually: ollama serve")
             sys.exit(1)

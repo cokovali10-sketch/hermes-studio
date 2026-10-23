@@ -1,5 +1,4 @@
 """Code intelligence tools for the Hermes agent."""
-import json
 
 from hermes.modules.code_intel.parser import parse_file
 from hermes.modules.code_intel.semantic import semantic_search

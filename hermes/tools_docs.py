@@ -4,10 +4,14 @@ import json
 import os
 import re
 import ast
+# --- константы вынесены FORGE refactor ---
+CONST_5 = 5
+CONST_50 = 50
+
 
 TOOLS = [
     {"name": "generate_readme", "description": "Generate README.md for a project", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Project root"}, "title": {"type": "string", "description": "Project title"}}, "required": ["path"]}},
-    {"name": "generate_changelog", "description": "Generate CHANGELOG from git commits", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "limit": {"type": "integer", "default": 50}}}},
+    {"name": "generate_changelog", "description": "Generate CHANGELOG from git commits", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "limit": {"type": "integer", "default": CONST_50}}}},
     {"name": "generate_api_docs", "description": "Generate API documentation from code", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Source file or directory"}, "format": {"type": "string", "default": "markdown"}}}},
     {"name": "generate_docstring", "description": "Generate docstrings for Python functions", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Python file"}}, "required": ["path"]}},
     {"name": "analyze_code_quality", "description": "Analyze code quality metrics", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "language": {"type": "string"}}}},
@@ -37,10 +41,10 @@ async def generate_readme(args):
         indent = "  " * level
         readme += f"{indent}{os.path.basename(root)}/\n"
         subindent = "  " * (level + 1)
-        for file in files[:5]:
+        for file in files[:CONST_5]:
             readme += f"{subindent}{file}\n"
-        if len(files) > 5:
-            readme += f"{subindent}... and {len(files) - 5} more\n"
+        if len(files) > CONST_5:
+            readme += f"{subindent}... and {len(files) - CONST_5} more\n"
     readme += "```\n\n"
     readme += "## License\n\n[License]\n"
     readme_path = os.path.join(path, "README.md")
@@ -50,7 +54,7 @@ async def generate_readme(args):
 
 async def generate_changelog(args):
     path = args.get("path", ".")
-    limit = args.get("limit", 50)
+    limit = args.get("limit", CONST_50)
     try:
         proc = await asyncio.create_subprocess_exec(
             "git", "log", f"--oneline", f"-{limit}",
@@ -79,7 +83,7 @@ async def generate_api_docs(args):
             for f in filenames:
                 if f.endswith(('.py', '.js', '.ts')):
                     files.append(os.path.join(root, f))
-    for fpath in files[:50]:
+    for fpath in files[:CONST_50]:
         try:
             with open(fpath, 'r', errors='ignore') as f:
                 content = f.read()
@@ -120,7 +124,7 @@ async def generate_docstring(args):
                         docstring += f"        {a}: TODO.\n"
                     docstring += '    """\n'
                     additions.append({"line": node.lineno, "name": node.name, "docstring": docstring})
-        return json.dumps({"file": path, "missing_docstrings": len(additions), "suggestions": additions[:50]})
+        return json.dumps({"file": path, "missing_docstrings": len(additions), "suggestions": additions[:CONST_50]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 

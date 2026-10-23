@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from hermes.modules.agents.base import BaseAgent
-from hermes.modules.agents.message import MessageType
 
 
 class CoderAgent(BaseAgent):

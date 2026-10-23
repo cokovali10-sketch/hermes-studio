@@ -1,6 +1,5 @@
 """SQLite database connection and schema management."""
 import aiosqlite
-import pathlib
 
 from hermes.core import ROOT
 

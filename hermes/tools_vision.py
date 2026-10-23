@@ -7,7 +7,6 @@ from hermes.modules.vision.analysis import (
     extract_text_from_image,
 )
 from hermes.modules.vision.threejs_gen import generate_threejs_scene, create_3d_object
-from hermes.modules.vision.screenshot_diff import diff_screenshots
 
 
 async def tool_analyze_ui_screenshot(image_b64: str) -> dict:

@@ -1,5 +1,13 @@
 """Three.js scene generation — creates HTML files with embedded 3D scenes."""
 from __future__ import annotations
+# --- константы вынесены FORGE refactor ---
+CONST_0_01 = 0.01
+CONST_0_3 = 0.3
+CONST_0_4 = 0.4
+CONST_4 = 4
+CONST_6 = 6
+CONST_32 = 32
+
 
 THREEJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
 ORBIT_CDN = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"
@@ -213,22 +221,22 @@ async def generate_threejs_scene(description: str) -> dict:
 
     if "sphere" in desc:
         body = _SPHERE_TEMPLATE.format(
-            radius=1, widthSegments=32, heightSegments=32,
-            color="4fc3f7", metalness=0.3, roughness=0.4, wireframe="false",
-            rot_speed=0.01,
+            radius=1, widthSegments=CONST_32, heightSegments=CONST_32,
+            color="4fc3f7", metalness=CONST_0_3, roughness=CONST_0_4, wireframe="false",
+            rot_speed=CONST_0_01,
         )
         info = "Sphere — Drag to rotate, scroll to zoom"
     elif "plane" in desc or "floor" in desc or "ground" in desc:
         body = _PLANE_TEMPLATE.format(
-            width=6, height=6, segW=10, segH=10,
+            width=CONST_6, height=CONST_6, segW=10, segH=10,
             color="66bb6a", metalness=0.1, roughness=0.8, wireframe="false",
         )
         info = "Plane — Drag to rotate, scroll to zoom"
     else:
         body = _CUBE_TEMPLATE.format(
             width=1, height=1, depth=1,
-            color="ef5350", metalness=0.3, roughness=0.4, wireframe="false",
-            rot_speed=0.01,
+            color="ef5350", metalness=CONST_0_3, roughness=CONST_0_4, wireframe="false",
+            rot_speed=CONST_0_01,
         )
         info = "Cube — Drag to rotate, scroll to zoom"
 
@@ -242,19 +250,19 @@ async def create_3d_object(object_type: str = "cube", color: str = "4fc3f7",
 
     color = color.lstrip("#")
     wf = "true" if wireframe else "false"
-    metalness = 0.3
-    roughness = 0.4
-    rot_speed = 0.01
+    metalness = CONST_0_3
+    roughness = CONST_0_4
+    rot_speed = CONST_0_01
 
     if object_type == "sphere":
         body = _SPHERE_TEMPLATE.format(
-            radius=size, widthSegments=32, heightSegments=32,
+            radius=size, widthSegments=CONST_32, heightSegments=CONST_32,
             color=color, metalness=metalness, roughness=roughness,
             wireframe=wf, rot_speed=rot_speed,
         )
     elif object_type == "plane":
         body = _PLANE_TEMPLATE.format(
-            width=size * 4, height=size * 4, segW=10, segH=10,
+            width=size * CONST_4, height=size * CONST_4, segW=10, segH=10,
             color=color, metalness=metalness, roughness=roughness,
             wireframe=wf,
         )

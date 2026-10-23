@@ -4,6 +4,9 @@ import pathlib
 import re
 from collections import Counter
 from typing import Any
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+
 
 IGNORE_DIRS = {
     "node_modules", ".git", "__pycache__", "dist", "build", ".next",
@@ -121,8 +124,8 @@ class SemanticSearch:
 
                 if score > 0.001:
                     context_lines = data["lines"]
-                    start = max(0, chunk["start_line"] - 3)
-                    end = min(len(context_lines), chunk["end_line"] + 3)
+                    start = max(0, chunk["start_line"] - CONST_3)
+                    end = min(len(context_lines), chunk["end_line"] + CONST_3)
                     context = "\n".join(
                         f"{i+1:4d} | {context_lines[i]}"
                         for i in range(start, end)

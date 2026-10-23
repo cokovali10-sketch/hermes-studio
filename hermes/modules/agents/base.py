@@ -8,6 +8,9 @@ from enum import Enum
 
 from hermes.bus import bus
 from hermes.modules.agents.message import AgentMessage, MessageBus, MessageType, agent_bus
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+
 
 
 class AgentStatus(str, Enum):
@@ -72,8 +75,8 @@ class BaseAgent(ABC):
 
     def elapsed(self) -> float:
         if self.completed_at:
-            return round(self.completed_at - self.created_at, 3)
-        return round(time.time() - self.created_at, 3)
+            return round(self.completed_at - self.created_at, CONST_3)
+        return round(time.time() - self.created_at, CONST_3)
 
     def to_dict(self) -> dict:
         return {

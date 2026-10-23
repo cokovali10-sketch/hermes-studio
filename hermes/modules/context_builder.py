@@ -1,5 +1,4 @@
 """Build context strings for LLM consumption."""
-import json
 
 
 def build_context(project_meta: dict, task: str = "", memories: list[dict] | None = None) -> str:

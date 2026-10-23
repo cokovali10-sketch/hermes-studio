@@ -2,13 +2,21 @@
 import asyncio
 import json
 import os
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+CONST_4 = 4
+CONST_15 = 15
+CONST_50 = 50
+CONST_60 = 60
+CONST_2000 = 2000
+
 
 TOOLS = [
     {"name": "docker_build", "description": "Build a Docker image from a Dockerfile", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Path to Dockerfile directory"}, "tag": {"type": "string", "description": "Image tag (name:version)"}}, "required": ["path", "tag"]}},
     {"name": "docker_run", "description": "Run a Docker container", "parameters": {"type": "object", "properties": {"image": {"type": "string", "description": "Image name"}, "ports": {"type": "string", "description": "Port mappings (e.g. 8080:80)"}, "detach": {"type": "boolean", "description": "Run in background", "default": True}}, "required": ["image"]}},
     {"name": "docker_stop", "description": "Stop a running container", "parameters": {"type": "object", "properties": {"container": {"type": "string", "description": "Container ID or name"}}, "required": ["container"]}},
     {"name": "docker_list", "description": "List Docker containers (running or all)", "parameters": {"type": "object", "properties": {"all": {"type": "boolean", "description": "Show all containers", "default": False}}}},
-    {"name": "docker_logs", "description": "Get container logs", "parameters": {"type": "object", "properties": {"container": {"type": "string", "description": "Container ID or name"}, "lines": {"type": "integer", "description": "Number of lines to show", "default": 50}}, "required": ["container"]}},
+    {"name": "docker_logs", "description": "Get container logs", "parameters": {"type": "object", "properties": {"container": {"type": "string", "description": "Container ID or name"}, "lines": {"type": "integer", "description": "Number of lines to show", "default": CONST_50}}, "required": ["container"]}},
     {"name": "docker_compose", "description": "Run docker-compose commands", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Path to docker-compose.yml"}, "command": {"type": "string", "description": "Compose command (up, down, ps, logs)"}}, "required": ["command"]}},
     {"name": "docker_images", "description": "List Docker images", "parameters": {"type": "object", "properties": {}}},
     {"name": "docker_exec", "description": "Execute command in running container", "parameters": {"type": "object", "properties": {"container": {"type": "string", "description": "Container ID"}, "command": {"type": "string", "description": "Command to execute"}}, "required": ["container", "command"]}},
@@ -27,7 +35,7 @@ async def docker_build(args):
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
-        output = stdout.decode(errors="ignore")[-2000:]
+        output = stdout.decode(errors="ignore")[-CONST_2000:]
         return json.dumps({"success": proc.returncode == 0, "tag": tag, "output": output})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -44,7 +52,7 @@ async def docker_run(args):
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_60)
         return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore").strip()})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -69,26 +77,26 @@ async def docker_list(args):
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
         containers = []
         for line in stdout.decode(errors="ignore").strip().split("\n"):
             if line:
                 parts = line.split("\t")
-                if len(parts) >= 4:
-                    containers.append({"id": parts[0], "name": parts[1], "status": parts[2], "image": parts[3]})
+                if len(parts) >= CONST_4:
+                    containers.append({"id": parts[0], "name": parts[1], "status": parts[2], "image": parts[CONST_3]})
         return json.dumps({"containers": containers, "count": len(containers)})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 async def docker_logs(args):
     container = args["container"]
-    lines = args.get("lines", 50)
+    lines = args.get("lines", CONST_50)
     try:
         proc = await asyncio.create_subprocess_exec(
             "docker", "logs", "--tail", str(lines), container,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
         return json.dumps({"container": container, "logs": stdout.decode(errors="ignore")[-3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -103,7 +111,7 @@ async def docker_compose(args):
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
-        return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore")[-2000:]})
+        return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore")[-CONST_2000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -113,12 +121,12 @@ async def docker_images(args):
             "docker", "images", "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
         images = []
         for line in stdout.decode(errors="ignore").strip().split("\n"):
             if line:
                 parts = line.split("\t")
-                if len(parts) >= 3:
+                if len(parts) >= CONST_3:
                     images.append({"image": parts[0], "size": parts[1], "created": parts[2]})
         return json.dumps({"images": images, "count": len(images)})
     except Exception as e:
@@ -132,8 +140,8 @@ async def docker_exec(args):
             "docker", "exec", container, *command.split(),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
-        return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore")[-2000:]})
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_60)
+        return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore")[-CONST_2000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -146,13 +154,13 @@ async def docker_stats(args):
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
         stats = []
         for line in stdout.decode(errors="ignore").strip().split("\n"):
             if line:
                 parts = line.split("\t")
-                if len(parts) >= 4:
-                    stats.append({"name": parts[0], "cpu": parts[1], "memory": parts[2], "network": parts[3]})
+                if len(parts) >= CONST_4:
+                    stats.append({"name": parts[0], "cpu": parts[1], "memory": parts[2], "network": parts[CONST_3]})
         return json.dumps({"stats": stats})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -166,7 +174,7 @@ async def docker_clean(args):
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_60)
         return json.dumps({"success": proc.returncode == 0, "output": stdout.decode(errors="ignore")})
     except Exception as e:
         return json.dumps({"error": str(e)})

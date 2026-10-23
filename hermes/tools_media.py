@@ -1,20 +1,28 @@
 """Media processing tools for Hermes agent."""
 import asyncio
-import base64
 import json
 import pathlib
+# --- константы вынесены FORGE refactor ---
+CONST_75 = 75
+CONST_128 = 128
+CONST_255 = 255
+CONST_300 = 300
+CONST_320 = 320
+CONST_600 = 600
+CONST_2000 = 2000
+
 
 TOOLS = [
     {"name": "convert_image", "description": "Convert image from one format to another", "parameters": {"type": "object", "properties": {"input_path": {"type": "string", "description": "Source image path"}, "output_path": {"type": "string", "description": "Destination path"}, "format": {"type": "string", "enum": ["PNG", "JPEG", "WEBP", "BMP", "TIFF", "GIF"], "description": "Target format"}}, "required": ["input_path", "output_path", "format"]}},
     {"name": "resize_image", "description": "Resize an image to specified dimensions", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "width": {"type": "integer", "description": "Target width in pixels"}, "height": {"type": "integer", "description": "Target height in pixels"}, "keep_ratio": {"type": "boolean", "default": True}}, "required": ["input_path", "output_path", "width", "height"]}},
-    {"name": "compress_image", "description": "Compress image to reduce file size", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "quality": {"type": "integer", "description": "Quality 1-100 (lower = smaller)", "default": 75}}, "required": ["input_path", "output_path"]}},
+    {"name": "compress_image", "description": "Compress image to reduce file size", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "quality": {"type": "integer", "description": "Quality 1-100 (lower = smaller)", "default": CONST_75}}, "required": ["input_path", "output_path"]}},
     {"name": "extract_metadata", "description": "Extract EXIF and metadata from an image", "parameters": {"type": "object", "properties": {"input_path": {"type": "string", "description": "Image file path"}}, "required": ["input_path"]}},
     {"name": "convert_video", "description": "Convert video format using ffmpeg", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "codec": {"type": "string", "description": "Video codec (libx264, libx265, libvpx)", "default": "libx264"}}, "required": ["input_path", "output_path"]}},
     {"name": "trim_video", "description": "Trim video to a time range", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "start": {"type": "string", "description": "Start time (HH:MM:SS or seconds)"}, "end": {"type": "string", "description": "End time (HH:MM:SS or seconds)"}}, "required": ["input_path", "output_path", "start", "end"]}},
     {"name": "extract_audio", "description": "Extract audio track from video", "parameters": {"type": "object", "properties": {"input_path": {"type": "string", "description": "Video file"}, "output_path": {"type": "string", "description": "Audio file path (e.g. output.mp3)"}}, "required": ["input_path", "output_path"]}},
     {"name": "convert_audio", "description": "Convert audio format using ffmpeg", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "bitrate": {"type": "string", "description": "Audio bitrate (e.g. 128k, 320k)", "default": "128k"}}, "required": ["input_path", "output_path"]}},
-    {"name": "generate_thumbnail", "description": "Generate a thumbnail from a video or image", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "time": {"type": "string", "description": "Timestamp for video thumbnail (default 00:00:01)"}, "width": {"type": "integer", "default": 320}}, "required": ["input_path", "output_path"]}},
-    {"name": "watermark_image", "description": "Add a text watermark to an image", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "text": {"type": "string", "description": "Watermark text"}, "position": {"type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right", "center"], "default": "bottom-right"}, "opacity": {"type": "integer", "description": "Opacity 0-255", "default": 128}}, "required": ["input_path", "output_path", "text"]}},
+    {"name": "generate_thumbnail", "description": "Generate a thumbnail from a video or image", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "time": {"type": "string", "description": "Timestamp for video thumbnail (default 00:00:01)"}, "width": {"type": "integer", "default": CONST_320}}, "required": ["input_path", "output_path"]}},
+    {"name": "watermark_image", "description": "Add a text watermark to an image", "parameters": {"type": "object", "properties": {"input_path": {"type": "string"}, "output_path": {"type": "string"}, "text": {"type": "string", "description": "Watermark text"}, "position": {"type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right", "center"], "default": "bottom-right"}, "opacity": {"type": "integer", "description": "Opacity 0-255", "default": CONST_128}}, "required": ["input_path", "output_path", "text"]}},
 ]
 
 functions = {}
@@ -69,7 +77,7 @@ async def compress_image(args):
         Image, _, _ = _require_pillow()
         inp = args["input_path"]
         out = args["output_path"]
-        quality = args.get("quality", 75)
+        quality = args.get("quality", CONST_75)
         img = Image.open(inp)
         if img.mode == "RGBA":
             img = img.convert("RGB")
@@ -105,34 +113,34 @@ async def convert_video(args):
     inp = args["input_path"]
     out = args["output_path"]
     codec = args.get("codec", "libx264")
-    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-c:v", codec, "-c:a", "copy", out], timeout=600)
-    return json.dumps({"success": code == 0, "output": out, "log": output[-2000:]})
+    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-c:v", codec, "-c:a", "copy", out], timeout=CONST_600)
+    return json.dumps({"success": code == 0, "output": out, "log": output[-CONST_2000:]})
 
 async def trim_video(args):
     inp = args["input_path"]
     out = args["output_path"]
     start = args["start"]
     end = args["end"]
-    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-ss", start, "-to", end, "-c", "copy", out], timeout=600)
-    return json.dumps({"success": code == 0, "output": out, "log": output[-2000:]})
+    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-ss", start, "-to", end, "-c", "copy", out], timeout=CONST_600)
+    return json.dumps({"success": code == 0, "output": out, "log": output[-CONST_2000:]})
 
 async def extract_audio(args):
     inp = args["input_path"]
     out = args["output_path"]
-    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-vn", "-acodec", "copy", out], timeout=300)
-    return json.dumps({"success": code == 0, "output": out, "log": output[-2000:]})
+    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-vn", "-acodec", "copy", out], timeout=CONST_300)
+    return json.dumps({"success": code == 0, "output": out, "log": output[-CONST_2000:]})
 
 async def convert_audio(args):
     inp = args["input_path"]
     out = args["output_path"]
     bitrate = args.get("bitrate", "128k")
-    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-b:a", bitrate, out], timeout=300)
-    return json.dumps({"success": code == 0, "output": out, "log": output[-2000:]})
+    code, output = await _run_cmd(["ffmpeg", "-y", "-i", inp, "-b:a", bitrate, out], timeout=CONST_300)
+    return json.dumps({"success": code == 0, "output": out, "log": output[-CONST_2000:]})
 
 async def generate_thumbnail(args):
     inp = args["input_path"]
     out = args["output_path"]
-    width = args.get("width", 320)
+    width = args.get("width", CONST_320)
     ext = pathlib.Path(inp).suffix.lower()
     if ext in (".mp4", ".avi", ".mov", ".mkv", ".webm"):
         time_pos = args.get("time", "00:00:01")
@@ -155,7 +163,7 @@ async def watermark_image(args):
         out = args["output_path"]
         text = args["text"]
         position = args.get("position", "bottom-right")
-        opacity = args.get("opacity", 128)
+        opacity = args.get("opacity", CONST_128)
         img = Image.open(inp).convert("RGBA")
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
@@ -174,7 +182,7 @@ async def watermark_image(args):
             "center": ((img.width - tw) // 2, (img.height - th) // 2),
         }
         pos = positions.get(position, positions["bottom-right"])
-        draw.text(pos, text, fill=(255, 255, 255, opacity), font=font)
+        draw.text(pos, text, fill=(CONST_255, CONST_255, CONST_255, opacity), font=font)
         result = Image.alpha_composite(img, overlay).convert("RGB")
         result.save(out)
         return json.dumps({"success": True, "output": out, "position": position})

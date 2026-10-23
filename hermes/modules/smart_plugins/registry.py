@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import shutil
 
-from hermes.core import PLUGINS_DIR, ROOT
+from hermes.core import PLUGINS_DIR
 from hermes.bus import bus
 
 MANIFEST_FILE = "hermes.plugin.json"

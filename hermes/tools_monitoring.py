@@ -3,13 +3,21 @@ import asyncio
 import json
 import os
 import platform
-import subprocess
 import sys
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+CONST_4 = 4
+CONST_5 = 5
+CONST_6 = 6
+CONST_7 = 7
+CONST_15 = 15
+CONST_30 = 30
+
 
 TOOLS = [
-    {"name": "monitor_processes", "description": "List running processes with CPU/memory usage", "parameters": {"type": "object", "properties": {"filter": {"type": "string", "description": "Filter by process name"}, "sort_by": {"type": "string", "enum": ["cpu", "memory", "name", "pid"], "description": "Sort results", "default": "cpu"}, "limit": {"type": "integer", "description": "Max processes to return", "default": 30}}}},
+    {"name": "monitor_processes", "description": "List running processes with CPU/memory usage", "parameters": {"type": "object", "properties": {"filter": {"type": "string", "description": "Filter by process name"}, "sort_by": {"type": "string", "enum": ["cpu", "memory", "name", "pid"], "description": "Sort results", "default": "cpu"}, "limit": {"type": "integer", "description": "Max processes to return", "default": CONST_30}}}},
     {"name": "monitor_network", "description": "Show network connections and traffic stats", "parameters": {"type": "object", "properties": {"connections_only": {"type": "boolean", "description": "Show only connections (no stats)", "default": False}}}},
-    {"name": "monitor_disk_io", "description": "Show disk read/write speeds and I/O stats", "parameters": {"type": "object", "properties": {"interval": {"type": "integer", "description": "Sampling interval in seconds", "default": 3}}}},
+    {"name": "monitor_disk_io", "description": "Show disk read/write speeds and I/O stats", "parameters": {"type": "object", "properties": {"interval": {"type": "integer", "description": "Sampling interval in seconds", "default": CONST_3}}}},
     {"name": "monitor_gpu", "description": "Show GPU usage via nvidia-smi", "parameters": {"type": "object", "properties": {}}},
     {"name": "monitor_docker", "description": "Show Docker container resource stats", "parameters": {"type": "object", "properties": {}}},
     {"name": "monitor_services", "description": "Show Windows/Linux services status", "parameters": {"type": "object", "properties": {"filter": {"type": "string", "description": "Filter services by name"}, "running_only": {"type": "boolean", "description": "Show only running services", "default": False}}}},
@@ -23,7 +31,7 @@ functions = {}
 
 async def monitor_processes(args):
     sort_by = args.get("sort_by", "cpu")
-    limit = args.get("limit", 30)
+    limit = args.get("limit", CONST_30)
     filt = args.get("filter", "")
     try:
         code = f"""
@@ -103,7 +111,7 @@ print(json.dumps({'connections': conns, 'stats': stats, 'total_connections': len
         return json.dumps({"error": str(e)})
 
 async def monitor_disk_io(args):
-    interval = args.get("interval", 3)
+    interval = args.get("interval", CONST_3)
     try:
         code = f"""
 import psutil, json, time
@@ -142,7 +150,7 @@ print(json.dumps(result))
             sys.executable, "-c", code,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_30)
         return stdout.decode(errors="ignore").strip()
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -167,11 +175,11 @@ async def monitor_gpu(args):
                         "name": parts[0],
                         "temperature_c": parts[1],
                         "gpu_utilization": parts[2],
-                        "memory_utilization": parts[3],
-                        "memory_total_mb": parts[4],
-                        "memory_used_mb": parts[5],
-                        "memory_free_mb": parts[6],
-                        "power_draw_w": parts[7],
+                        "memory_utilization": parts[CONST_3],
+                        "memory_total_mb": parts[CONST_4],
+                        "memory_used_mb": parts[CONST_5],
+                        "memory_free_mb": parts[CONST_6],
+                        "power_draw_w": parts[CONST_7],
                     })
         return json.dumps({"gpus": gpus, "count": len(gpus)})
     except FileNotFoundError:
@@ -186,7 +194,7 @@ async def monitor_docker(args):
             "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
         output = stdout.decode(errors="ignore").strip()
         if proc.returncode != 0:
             return json.dumps({"error": "Docker not running or no containers", "success": False})
@@ -194,15 +202,15 @@ async def monitor_docker(args):
         for line in output.split("\n"):
             if line.strip():
                 parts = line.split("\t")
-                if len(parts) >= 7:
+                if len(parts) >= CONST_7:
                     containers.append({
                         "name": parts[0],
                         "cpu": parts[1],
                         "memory": parts[2],
-                        "memory_percent": parts[3],
-                        "network_io": parts[4],
-                        "block_io": parts[5],
-                        "pids": parts[6],
+                        "memory_percent": parts[CONST_3],
+                        "network_io": parts[CONST_4],
+                        "block_io": parts[CONST_5],
+                        "pids": parts[CONST_6],
                     })
         return json.dumps({"containers": containers, "count": len(containers)})
     except FileNotFoundError:
@@ -221,7 +229,7 @@ async def monitor_services(args):
             proc = await asyncio.create_subprocess_shell(
                 cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
             data = json.loads(stdout.decode(errors="ignore").strip())
             if isinstance(data, dict):
                 data = [data]
@@ -231,15 +239,15 @@ async def monitor_services(args):
                 "systemctl", "list-units", "--type=service", "--all", "--no-pager", "--plain", "--no-legend",
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
             services = []
             for line in stdout.decode(errors="ignore").strip().split("\n"):
                 parts = line.split()
-                if len(parts) >= 4:
+                if len(parts) >= CONST_4:
                     name = parts[0].replace(".service", "")
                     if filt and filt.lower() not in name.lower():
                         continue
-                    services.append({"name": name, "status": parts[2], "display_name": " ".join(parts[3:])})
+                    services.append({"name": name, "status": parts[2], "display_name": " ".join(parts[CONST_3:])})
         if running_only:
             services = [s for s in services if s["status"].lower() in ("running", "active")]
         return json.dumps({"services": services, "count": len(services)})
@@ -253,7 +261,7 @@ async def monitor_scheduled_tasks(args):
                 'powershell -Command "Get-ScheduledTask | Where-Object {$_.State -ne \'Disabled\'} | Select-Object TaskName,TaskPath,State,@{N=\'Actions\';E={($_.Actions | ForEach-Object {$_.Execute}) -join \',\'}} | ConvertTo-Json"',
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_15)
             data = json.loads(stdout.decode(errors="ignore").strip())
             if isinstance(data, dict):
                 data = [data]
@@ -262,7 +270,7 @@ async def monitor_scheduled_tasks(args):
             proc = await asyncio.create_subprocess_exec(
                 "crontab", "-l", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CONST_5)
             tasks = []
             for line in stdout.decode(errors="ignore").strip().split("\n"):
                 line = line.strip()
@@ -314,7 +322,7 @@ async def monitor_env_vars(args):
         masked = {}
         for k, v in env_vars.items():
             if any(s in k.lower() for s in sensitive) and show_values:
-                masked[k] = v[:4] + "***" if len(v) > 4 else "***"
+                masked[k] = v[:CONST_4] + "***" if len(v) > CONST_4 else "***"
             else:
                 masked[k] = v
         return json.dumps({"variables": masked, "count": len(masked), "total_env_vars": len(os.environ)})

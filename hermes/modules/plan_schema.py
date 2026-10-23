@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 import uuid
+# --- константы вынесены FORGE refactor ---
+CONST_8 = 8
+
 
 
 class PlanStatus(Enum):
@@ -136,11 +139,11 @@ def create_plan_id() -> str:
 
 
 def create_phase_id() -> str:
-    return f"phase_{uuid.uuid4().hex[:8]}"
+    return f"phase_{uuid.uuid4().hex[:CONST_8]}"
 
 
 def create_step_id() -> str:
-    return f"step_{uuid.uuid4().hex[:8]}"
+    return f"step_{uuid.uuid4().hex[:CONST_8]}"
 
 
 def validate_plan(plan: Plan) -> list[str]:

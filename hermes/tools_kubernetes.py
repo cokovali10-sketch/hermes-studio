@@ -1,6 +1,9 @@
 """Kubernetes management tools for Hermes agent."""
 import asyncio
 import json
+# --- константы вынесены FORGE refactor ---
+CONST_3000 = 3000
+
 
 TOOLS = [
     {"name": "k8s_get_pods", "description": "Get Kubernetes pods", "parameters": {"type": "object", "properties": {"namespace": {"type": "string", "default": "default"}}}},
@@ -49,7 +52,7 @@ async def k8s_get_services(args):
 
 async def k8s_describe(args):
     output = await _run_kubectl(args, "describe", args["resource"], args["name"])
-    return json.dumps({"resource": args["resource"], "name": args["name"], "output": output[-3000:]})
+    return json.dumps({"resource": args["resource"], "name": args["name"], "output": output[-CONST_3000:]})
 
 async def k8s_logs(args):
     pod = args["pod"]
@@ -70,7 +73,7 @@ async def k8s_exec(args):
         cmd.extend(["-c", container])
     cmd.extend(["--", *command.split()])
     output = await _run_kubectl(args, *cmd)
-    return json.dumps({"pod": pod, "command": command, "output": output[-3000:]})
+    return json.dumps({"pod": pod, "command": command, "output": output[-CONST_3000:]})
 
 async def k8s_scale(args):
     deployment = args["deployment"]
@@ -98,7 +101,7 @@ async def k8s_events(args):
         events = [{"type": item["type"], "reason": item["reason"], "message": item["message"][:200], "count": item["count"]} for item in data.get("items", [])[-50:]]
         return json.dumps({"events": events, "count": len(events)})
     except:
-        return json.dumps({"output": output[-3000:]})
+        return json.dumps({"output": output[-CONST_3000:]})
 
 async def k8s_context(args):
     try:

@@ -5,8 +5,14 @@ import json
 import os
 import pathlib
 import socket
-import struct
 import time
+# --- константы вынесены FORGE refactor ---
+CONST_16 = 16
+CONST_128 = 128
+CONST_200 = 200
+CONST_443 = 443
+CONST_3600 = 3600
+
 
 TOOLS = [
     {
@@ -29,7 +35,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "domain": {"type": "string", "description": "Domain to check"},
-                "port": {"type": "integer", "description": "Port to connect to", "default": 443},
+                "port": {"type": "integer", "description": "Port to connect to", "default": CONST_443},
             },
             "required": ["domain"],
         },
@@ -68,7 +74,7 @@ TOOLS = [
                 "payload": {"type": "string", "description": "JSON string of claims (e.g. '{\"sub\": \"user123\"}')"},
                 "secret": {"type": "string", "description": "Signing secret key"},
                 "algorithm": {"type": "string", "description": "JWT algorithm", "default": "HS256"},
-                "expires_in": {"type": "integer", "description": "Expiration in seconds", "default": 3600},
+                "expires_in": {"type": "integer", "description": "Expiration in seconds", "default": CONST_3600},
             },
             "required": ["payload", "secret"],
         },
@@ -144,7 +150,7 @@ functions = {}
 
 COMMON_PORTS = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS",
-    80: "HTTP", 110: "POP3", 143: "IMAP", 443: "HTTPS", 993: "IMAPS",
+    80: "HTTP", 110: "POP3", 143: "IMAP", CONST_443: "HTTPS", 993: "IMAPS",
     995: "POP3S", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL",
     6379: "Redis", 8080: "HTTP-Alt", 8443: "HTTPS-Alt", 27017: "MongoDB",
 }
@@ -187,7 +193,7 @@ async def scan_ports(args):
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
             pass
 
-    semaphore = asyncio.Semaphore(200)
+    semaphore = asyncio.Semaphore(CONST_200)
 
     async def _limited_check(port):
         async with semaphore:
@@ -200,7 +206,7 @@ async def scan_ports(args):
 
 async def check_ssl(args):
     domain = args["domain"]
-    port = args.get("port", 443)
+    port = args.get("port", CONST_443)
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -272,7 +278,7 @@ async def hash_password(args):
                 from argon2 import PasswordHasher
                 ph = PasswordHasher(
                     time_cost=3, memory_cost=65536, parallelism=4,
-                    hash_len=32, salt_len=16,
+                    hash_len=32, salt_len=CONST_16,
                 )
                 hashed = ph.hash(password)
                 return {"success": True, "hash": hashed, "algorithm": "argon2"}
@@ -322,7 +328,7 @@ async def generate_jwt(args):
     payload = json.loads(args["payload"])
     secret = args["secret"]
     algorithm = args.get("algorithm", "HS256")
-    expires_in = args.get("expires_in", 3600)
+    expires_in = args.get("expires_in", CONST_3600)
 
     try:
         import jwt as pyjwt
@@ -464,7 +470,7 @@ async def scan_vulnerabilities(args):
                         "cwe": cwe,
                         "description": desc,
                         "match": match.group()[:100],
-                        "context": content.splitlines()[line_num - 1].strip()[:200] if line_num <= len(content.splitlines()) else "",
+                        "context": content.splitlines()[line_num - 1].strip()[:CONST_200] if line_num <= len(content.splitlines()) else "",
                     })
         except (PermissionError, OSError):
             continue
@@ -505,12 +511,12 @@ async def encrypt_file(args):
 
     try:
         key = _hl.sha256(password.encode("utf-8")).digest()
-        iv = os.urandom(16)
+        iv = os.urandom(CONST_16)
 
         with open(input_path, "rb") as f:
             plaintext = f.read()
 
-        padder = _pad.PKCS7(128).padder()
+        padder = _pad.PKCS7(CONST_128).padder()
         padded = padder.update(plaintext) + padder.finalize()
 
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
@@ -550,14 +556,14 @@ async def decrypt_file(args):
         with open(input_path, "rb") as f:
             data = f.read()
 
-        iv = data[:16]
-        ciphertext = data[16:]
+        iv = data[:CONST_16]
+        ciphertext = data[CONST_16:]
 
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         decryptor = cipher.decryptor()
         padded = decryptor.update(ciphertext) + decryptor.finalize()
 
-        unpadder = _pad.PKCS7(128).unpadder()
+        unpadder = _pad.PKCS7(CONST_128).unpadder()
         plaintext = unpadder.update(padded) + unpadder.finalize()
 
         with open(output_path, "wb") as f:

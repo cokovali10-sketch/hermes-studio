@@ -1,6 +1,4 @@
 """Memory engine for project context and fact storage."""
-import json
-import pathlib
 import time
 
 from hermes.modules.memory_store import (

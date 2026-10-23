@@ -7,11 +7,18 @@ import shutil
 import sys
 import time
 from datetime import datetime
+# --- константы вынесены FORGE refactor ---
+CONST_30 = 30
+CONST_50 = 50
+CONST_60 = 60
+CONST_1024 = 1024
+CONST_86400 = 86400
+
 
 TOOLS = [
     {"name": "schedule_task", "description": "Schedule a shell command to run after a delay or at a specific time", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "Shell command to run"}, "delay_seconds": {"type": "integer", "description": "Delay before running (seconds)", "default": 0}, "at_time": {"type": "string", "description": "Run at HH:MM (24h format)"}}, "required": ["command"]}},
-    {"name": "watch_file", "description": "Watch a file for changes and return when modified", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "File path to watch"}, "timeout": {"type": "integer", "description": "Max wait time in seconds", "default": 60}}, "required": ["path"]}},
-    {"name": "watch_directory", "description": "Watch a directory for changes and return new/modified files", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Directory to watch"}, "timeout": {"type": "integer", "description": "Max wait time in seconds", "default": 30}, "recursive": {"type": "boolean", "description": "Watch subdirectories", "default": False}}}},
+    {"name": "watch_file", "description": "Watch a file for changes and return when modified", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "File path to watch"}, "timeout": {"type": "integer", "description": "Max wait time in seconds", "default": CONST_60}}, "required": ["path"]}},
+    {"name": "watch_directory", "description": "Watch a directory for changes and return new/modified files", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Directory to watch"}, "timeout": {"type": "integer", "description": "Max wait time in seconds", "default": CONST_30}, "recursive": {"type": "boolean", "description": "Watch subdirectories", "default": False}}}},
     {"name": "batch_rename", "description": "Rename files in bulk using pattern matching", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Directory containing files"}, "find_pattern": {"type": "string", "description": "Pattern to match (e.g. '*.txt', '*.IMG_*')"}, "replace_with": {"type": "string", "description": "Replacement pattern (use {1} for capture groups)"}, "dry_run": {"type": "boolean", "description": "Preview without renaming", "default": True}}, "required": ["path", "find_pattern", "replace_with"]}},
     {"name": "batch_convert", "description": "Convert files between formats (image/text/video)", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Directory with source files"}, "from_format": {"type": "string", "description": "Source format (e.g. .txt, .csv)"}, "to_format": {"type": "string", "description": "Target format (e.g. .json, .md)"}, "converter": {"type": "string", "description": "Conversion method: 'upper', 'lower', 'csv_to_json', 'json_to_csv', 'markdown'"}}, "required": ["path", "from_format", "to_format", "converter"]}},
     {"name": "auto_cleanup", "description": "Auto-delete old files matching criteria", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Directory to clean"}, "older_than_days": {"type": "integer", "description": "Delete files older than N days"}, "pattern": {"type": "string", "description": "File pattern to match (e.g. '*.log', '*.tmp')"}, "dry_run": {"type": "boolean", "description": "Preview without deleting", "default": True}}}},
@@ -58,7 +65,7 @@ async def schedule_task(args):
 
 async def watch_file(args):
     path = args["path"]
-    timeout = args.get("timeout", 60)
+    timeout = args.get("timeout", CONST_60)
     try:
         target = os.path.abspath(path)
         if not os.path.exists(target):
@@ -82,7 +89,7 @@ async def watch_file(args):
 
 async def watch_directory(args):
     path = args["path"]
-    timeout = args.get("timeout", 30)
+    timeout = args.get("timeout", CONST_30)
     recursive = args.get("recursive", False)
     try:
         target = os.path.abspath(path)
@@ -211,14 +218,14 @@ async def batch_convert(args):
 
 async def auto_cleanup(args):
     path = args["path"]
-    older_than_days = args.get("older_than_days", 30)
+    older_than_days = args.get("older_than_days", CONST_30)
     pattern = args.get("pattern", "*")
     dry_run = args.get("dry_run", True)
     try:
         target = os.path.abspath(path)
         if not os.path.exists(target):
             return json.dumps({"error": f"Directory not found: {path}", "success": False})
-        cutoff = time.time() - (older_than_days * 86400)
+        cutoff = time.time() - (older_than_days * CONST_86400)
         deleted = []
         total_size = 0
         for root, dirs, files in os.walk(target):
@@ -230,7 +237,7 @@ async def auto_cleanup(args):
                     mtime = os.path.getmtime(fp)
                     if mtime < cutoff:
                         size = os.path.getsize(fp)
-                        deleted.append({"file": os.path.relpath(fp, target), "size": size, "age_days": round((time.time() - mtime) / 86400, 1)})
+                        deleted.append({"file": os.path.relpath(fp, target), "size": size, "age_days": round((time.time() - mtime) / CONST_86400, 1)})
                         total_size += size
                         if not dry_run:
                             os.remove(fp)
@@ -238,7 +245,7 @@ async def auto_cleanup(args):
                     pass
         return json.dumps({
             "success": True, "deleted": deleted, "count": len(deleted),
-            "total_size_mb": round(total_size / 1024 / 1024, 2),
+            "total_size_mb": round(total_size / CONST_1024 / CONST_1024, 2),
             "dry_run": dry_run, "older_than_days": older_than_days,
         })
     except Exception as e:
@@ -286,7 +293,7 @@ async def sync_folder(args):
                             deleted.append(os.path.relpath(os_file, dst))
                         except Exception:
                             pass
-        return json.dumps({"success": True, "copied": len(copied), "skipped": len(skipped), "deleted": len(deleted), "copied_files": copied[:50], "deleted_files": deleted[:50]})
+        return json.dumps({"success": True, "copied": len(copied), "skipped": len(skipped), "deleted": len(deleted), "copied_files": copied[:CONST_50], "deleted_files": deleted[:CONST_50]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -351,7 +358,7 @@ async def compress_files(args):
                 else:
                     tf.add(target, arcname=os.path.basename(target))
         size = os.path.getsize(out)
-        return json.dumps({"success": True, "archive": out, "format": fmt, "size_mb": round(size / 1024 / 1024, 2)})
+        return json.dumps({"success": True, "archive": out, "format": fmt, "size_mb": round(size / CONST_1024 / CONST_1024, 2)})
     except Exception as e:
         return json.dumps({"error": str(e)})
 

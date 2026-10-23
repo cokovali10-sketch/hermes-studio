@@ -7,7 +7,6 @@ import time
 import uuid
 from base64 import b64decode
 
-import aiohttp
 import aiohttp_cors
 from aiohttp import web
 
@@ -19,11 +18,17 @@ from hermes.core import (
 )
 from hermes.bus import bus
 from hermes.ollama import ollama
-from hermes.tools import TOOLS_SCHEMA, TOOL_MAP, call_tool
+from hermes.tools import TOOLS_SCHEMA, TOOL_MAP
 from hermes.router import route_request, SYSTEM_CODING, SYSTEM_VISION, SYSTEM_REASONING
 from hermes.agent import AgentLoop
-from hermes.safety import safety_check, SafetyViolation
 from hermes.tools import _build_tree
+# --- константы вынесены FORGE refactor ---
+CONST_8 = 8
+CONST_400 = 400
+CONST_404 = 404
+CONST_503 = 503
+CONST_1024 = 1024
+
 
 try:
     from PIL import ImageGrab
@@ -85,7 +90,7 @@ async def index_handler(request):
     html_path = FRONTEND_DIR / "index.html"
     if html_path.exists():
         return web.FileResponse(html_path)
-    return web.Response(text="Frontend not found", status=404)
+    return web.Response(text="Frontend not found", status=CONST_404)
 
 
 async def classify_handler(request):
@@ -179,7 +184,7 @@ async def chat_handler(request):
     use_stream = request.query.get("stream") == "1"
 
     if not prompt and not images:
-        return web.json_response({"error": "empty prompt"}, status=400)
+        return web.json_response({"error": "empty prompt"}, status=CONST_400)
 
     model, route_type = route_request(prompt)
     system = SYSTEM_CODING if route_type == "coding" else SYSTEM_VISION if route_type == "vision" else SYSTEM_REASONING
@@ -244,17 +249,17 @@ async def agent_handler(request):
     model = body.get("model")
 
     if not task:
-        return web.json_response({"error": "empty task"}, status=400)
+        return web.json_response({"error": "empty task"}, status=CONST_400)
 
     if not await ensure_ollama():
-        return web.json_response({"error": "Ollama not running"}, status=503)
+        return web.json_response({"error": "Ollama not running"}, status=CONST_503)
 
     installed = await ollama.list_models()
     use_model = model or MODEL_AGENT
     if not ollama.model_installed(use_model, installed):
         use_model = MODEL_CODING if ollama.model_installed(MODEL_CODING, installed) else MODEL_REASONING
         if not ollama.model_installed(use_model, installed):
-            return web.json_response({"error": "No suitable model installed"}, status=503)
+            return web.json_response({"error": "No suitable model installed"}, status=CONST_503)
 
     agent = AgentLoop(task=task, model=use_model)
 
@@ -291,7 +296,7 @@ async def analyze_image_handler(request):
     save_path = body.get("save_path")
 
     if not image_b64:
-        return web.json_response({"error": "No image provided"}, status=400)
+        return web.json_response({"error": "No image provided"}, status=CONST_400)
 
     if save_path:
         save_target = WORKSPACE_DIR / save_path
@@ -309,15 +314,15 @@ async def upload_handler(request):
     reader = await request.multipart()
     field = await reader.next()
     if not field or field.name != "file":
-        return web.json_response({"error": "no file field"}, status=400)
+        return web.json_response({"error": "no file field"}, status=CONST_400)
 
     filename = field.filename or "upload.bin"
     filename = "".join(c for c in filename if c.isalnum() or c in "._- ")[:60].strip()
     if not filename:
         filename = "upload.bin"
 
-    dest = UPLOAD_DIR / f"{uuid.uuid4().hex[:8]}_{filename}"
-    max_bytes = CFG["limits"]["max_upload_mb"] * 1024 * 1024
+    dest = UPLOAD_DIR / f"{uuid.uuid4().hex[:CONST_8]}_{filename}"
+    max_bytes = CFG["limits"]["max_upload_mb"] * CONST_1024 * CONST_1024
     size = 0
 
     with open(dest, "wb") as f:
@@ -383,7 +388,7 @@ async def stats_dashboard_handler(request):
     html_path = FRONTEND_DIR / "stats.html"
     if html_path.exists():
         return web.FileResponse(html_path)
-    return web.Response(text="Stats dashboard not found", status=404)
+    return web.Response(text="Stats dashboard not found", status=CONST_404)
 
 
 # ─── Phase 2: Persistence Handlers ────────────────────────────────────────────
@@ -410,7 +415,7 @@ async def get_conversation_handler(request):
     conv_id = request.match_info["id"]
     conv = get_conversation(conv_id)
     if not conv:
-        return web.json_response({"error": "Not found"}, status=404)
+        return web.json_response({"error": "Not found"}, status=CONST_404)
     return web.json_response(conv)
 
 
@@ -487,7 +492,7 @@ async def get_plan_handler(request):
     engine = PlanningEngine()
     plan = engine.get_plan_status(plan_id)
     if not plan:
-        return web.json_response({"error": "Not found"}, status=404)
+        return web.json_response({"error": "Not found"}, status=CONST_404)
     return web.json_response(plan)
 
 
@@ -545,7 +550,7 @@ async def list_agents_handler(request):
 async def spawn_agent_handler(request):
     from hermes.modules.agents.coordinator import CoordinatorAgent
     data = await request.json()
-    agent_id = f"agent_{uuid.uuid4().hex[:8]}"
+    agent_id = f"agent_{uuid.uuid4().hex[:CONST_8]}"
     agent = CoordinatorAgent(agent_id, data.get("task", ""), model=data.get("model"))
     _agents[agent_id] = {"agent": agent, "status": "idle", "task": data.get("task", "")}
     return web.json_response({"agent_id": agent_id, "status": "spawned"})
@@ -555,7 +560,7 @@ async def get_agent_handler(request):
     agent_id = request.match_info["id"]
     agent_info = _agents.get(agent_id)
     if not agent_info:
-        return web.json_response({"error": "Not found"}, status=404)
+        return web.json_response({"error": "Not found"}, status=CONST_404)
     return web.json_response({"id": agent_id, "status": agent_info["status"], "task": agent_info["task"]})
 
 
@@ -564,7 +569,7 @@ async def stop_agent_handler(request):
     if agent_id in _agents:
         _agents[agent_id]["status"] = "stopped"
         return web.json_response({"success": True})
-    return web.json_response({"error": "Not found"}, status=404)
+    return web.json_response({"error": "Not found"}, status=CONST_404)
 
 
 # ─── Phase 7: Vision + 3D Handlers ────────────────────────────────────────────

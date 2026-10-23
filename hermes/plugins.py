@@ -4,7 +4,6 @@ import importlib.util
 from aiohttp import web
 
 from hermes.core import PLUGINS_DIR
-from hermes.bus import bus
 from hermes.tools import TOOL_MAP, TOOLS_SCHEMA
 
 _loaded_plugins = {}

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import time
 
 from hermes.core import ROOT
 from hermes.bus import bus
+# --- константы вынесены FORGE refactor ---
+CONST_500 = 500
+
 
 ERRORS_DIR = ROOT / ".hermes" / "errors"
 ERRORS_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,20 +30,20 @@ class ErrorLogger:
 
     def _save(self):
         try:
-            ERROR_FILE.write_text(json.dumps(self._errors[-500:], indent=2), encoding="utf-8")
+            ERROR_FILE.write_text(json.dumps(self._errors[-CONST_500:], indent=2), encoding="utf-8")
         except Exception:
             pass
 
     def log_error(self, error_type: str, context: str, traceback_str: str = "") -> dict:
         entry = {
             "error_type": error_type,
-            "context": context[:500],
+            "context": context[:CONST_500],
             "traceback": traceback_str[:1000],
             "timestamp": time.time(),
             "count": 1,
         }
         for existing in self._errors:
-            if existing["error_type"] == error_type and existing["context"] == context[:500]:
+            if existing["error_type"] == error_type and existing["context"] == context[:CONST_500]:
                 existing["count"] += 1
                 existing["last_seen"] = time.time()
                 bus.emit("error.recurring", {"error_type": error_type, "count": existing["count"]})

@@ -3,35 +3,41 @@ from __future__ import annotations
 
 from hermes.core import CFG
 from hermes.modules.self_improve.perf_profiler import perf_profiler
+# --- константы вынесены FORGE refactor ---
+CONST_6 = 6
+CONST_7 = 7
+CONST_8 = 8
+CONST_9 = 9
+
 
 
 TASK_MODEL_SCORES = {
     "coding": {
-        "codellama:13b": 9, "codellama:7b": 7, "deepseek-coder:6.7b": 8,
-        "qwen2.5-coder:7b": 8, "llama3.1:8b": 6, "mistral:7b": 5,
+        "codellama:13b": CONST_9, "codellama:7b": CONST_7, "deepseek-coder:6.7b": CONST_8,
+        "qwen2.5-coder:7b": CONST_8, "llama3.1:8b": CONST_6, "mistral:7b": 5,
     },
     "reasoning": {
-        "llama3.1:8b": 8, "mistral:7b": 7, "qwen2.5:7b": 8,
-        "deepseek-r1:8b": 9, "gemma2:9b": 7, "phi3:14b": 8,
+        "llama3.1:8b": CONST_8, "mistral:7b": CONST_7, "qwen2.5:7b": CONST_8,
+        "deepseek-r1:8b": CONST_9, "gemma2:9b": CONST_7, "phi3:14b": CONST_8,
     },
     "analysis": {
-        "llama3.1:8b": 8, "qwen2.5:7b": 8, "mistral:7b": 7,
-        "deepseek-r1:8b": 9, "phi3:14b": 8,
+        "llama3.1:8b": CONST_8, "qwen2.5:7b": CONST_8, "mistral:7b": CONST_7,
+        "deepseek-r1:8b": CONST_9, "phi3:14b": CONST_8,
     },
     "creative": {
-        "llama3.1:8b": 7, "mistral:7b": 7, "qwen2.5:7b": 7,
-        "gemma2:9b": 7, "phi3:14b": 7,
+        "llama3.1:8b": CONST_7, "mistral:7b": CONST_7, "qwen2.5:7b": CONST_7,
+        "gemma2:9b": CONST_7, "phi3:14b": CONST_7,
     },
     "simple": {
-        "qwen2.5:7b": 8, "llama3.1:8b": 7, "mistral:7b": 7,
-        "phi3:14b": 6, "gemma2:9b": 7,
+        "qwen2.5:7b": CONST_8, "llama3.1:8b": CONST_7, "mistral:7b": CONST_7,
+        "phi3:14b": CONST_6, "gemma2:9b": CONST_7,
     },
     "vision": {
-        "llava:1.6-mistral": 9, "bakllava:7b": 7,
+        "llava:1.6-mistral": CONST_9, "bakllava:7b": CONST_7,
     },
     "fast": {
-        "qwen2.5:7b": 8, "mistral:7b": 8, "phi3:14b": 7,
-        "llama3.1:8b": 7, "gemma2:9b": 7,
+        "qwen2.5:7b": CONST_8, "mistral:7b": CONST_8, "phi3:14b": CONST_7,
+        "llama3.1:8b": CONST_7, "gemma2:9b": CONST_7,
     },
 }
 
@@ -101,7 +107,7 @@ class ModelRouter:
     def get_model_info(self, model: str) -> dict:
         strengths = []
         for task_type, scores in TASK_MODEL_SCORES.items():
-            if model in scores and scores[model] >= 7:
+            if model in scores and scores[model] >= CONST_7:
                 strengths.append(task_type)
         return {
             "model": model,

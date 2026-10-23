@@ -1,9 +1,12 @@
 """Web development tools for Hermes agent."""
-import asyncio
 import json
 import os
 import re
-import sys
+# --- константы вынесены FORGE refactor ---
+CONST_80 = 80
+CONST_3001 = 3001
+CONST_5000 = 5000
+
 
 TOOLS = [
     {"name": "create_html", "description": "Create an HTML file with a template", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Output file path"}, "title": {"type": "string", "description": "Page title", "default": "Page"}, "template": {"type": "string", "enum": ["blank", "landing", "dashboard", "blog", "form", "portfolio"], "description": "Template type", "default": "blank"}, "content": {"type": "string", "description": "Main content for blank template"}}, "required": ["path"]}},
@@ -13,8 +16,8 @@ TOOLS = [
     {"name": "minify_js", "description": "Minify JavaScript content", "parameters": {"type": "object", "properties": {"content": {"type": "string", "description": "JS content to minify"}, "path": {"type": "string", "description": "Or path to JS file"}}, "required": ["content"]}},
     {"name": "validate_html", "description": "Validate HTML for errors", "parameters": {"type": "object", "properties": {"content": {"type": "string", "description": "HTML content to validate"}, "path": {"type": "string", "description": "Or path to HTML file"}}, "required": ["content"]}},
     {"name": "generate_sitemap", "description": "Generate a sitemap.xml for a website", "parameters": {"type": "object", "properties": {"urls": {"type": "array", "items": {"type": "object", "properties": {"loc": {"type": "string"}, "lastmod": {"type": "string"}, "priority": {"type": "number"}, "changefreq": {"type": "string"}}}, "description": "URL entries"}, "base_url": {"type": "string", "description": "Base URL"}, "output": {"type": "string", "description": "Output file path"}}, "required": ["base_url", "output"]}},
-    {"name": "optimize_image", "description": "Optimize/compress image files", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Image file path"}, "quality": {"type": "integer", "description": "Compression quality (1-100)", "default": 80}, "max_width": {"type": "integer", "description": "Max width in pixels"}, "format": {"type": "string", "description": "Output format (png, jpg, webp)"}}, "required": ["path"]}},
-    {"name": "create_api_mock", "description": "Create a mock API server with endpoints", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Output directory"}, "endpoints": {"type": "array", "items": {"type": "object", "properties": {"route": {"type": "string"}, "method": {"type": "string"}, "response": {"type": "object"}, "status": {"type": "integer"}}}, "description": "API endpoints"}, "port": {"type": "integer", "description": "Server port", "default": 3001}}}},
+    {"name": "optimize_image", "description": "Optimize/compress image files", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Image file path"}, "quality": {"type": "integer", "description": "Compression quality (1-100)", "default": CONST_80}, "max_width": {"type": "integer", "description": "Max width in pixels"}, "format": {"type": "string", "description": "Output format (png, jpg, webp)"}}, "required": ["path"]}},
+    {"name": "create_api_mock", "description": "Create a mock API server with endpoints", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Output directory"}, "endpoints": {"type": "array", "items": {"type": "object", "properties": {"route": {"type": "string"}, "method": {"type": "string"}, "response": {"type": "object"}, "status": {"type": "integer"}}}, "description": "API endpoints"}, "port": {"type": "integer", "description": "Server port", "default": CONST_3001}}}},
     {"name": "generate_swagger", "description": "Generate OpenAPI/Swagger specification", "parameters": {"type": "object", "properties": {"title": {"type": "string", "description": "API title"}, "version": {"type": "string", "description": "API version", "default": "1.0.0"}, "paths": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "method": {"type": "string"}, "summary": {"type": "string"}, "parameters": {"type": "array"}}}, "description": "API paths"}, "output": {"type": "string", "description": "Output file path"}}, "required": ["title", "output"]}},
 ]
 
@@ -356,7 +359,7 @@ async def minify_css(args):
             "success": True, "original_size": original_size,
             "minified_size": len(minified), "saved_bytes": saved,
             "compression_ratio": f"{round((1 - len(minified)/original_size)*100, 1)}%",
-            "minified": minified[:5000],
+            "minified": minified[:CONST_5000],
         })
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -385,7 +388,7 @@ async def minify_js(args):
             "success": True, "original_size": original_size,
             "minified_size": len(minified), "saved_bytes": saved,
             "compression_ratio": f"{round((1 - len(minified)/original_size)*100, 1)}%",
-            "minified": minified[:5000],
+            "minified": minified[:CONST_5000],
         })
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -470,7 +473,7 @@ async def generate_sitemap(args):
 
 async def optimize_image(args):
     path = args["path"]
-    quality = args.get("quality", 80)
+    quality = args.get("quality", CONST_80)
     max_width = args.get("max_width")
     output_format = args.get("format")
     try:
@@ -512,7 +515,7 @@ async def optimize_image(args):
 async def create_api_mock(args):
     path = args.get("path", ".")
     endpoints = args.get("endpoints", [])
-    port = args.get("port", 3001)
+    port = args.get("port", CONST_3001)
     try:
         target = os.path.abspath(path)
         os.makedirs(target, exist_ok=True)

@@ -17,6 +17,16 @@ from hermes.core import (
 )
 from hermes.bus import bus
 from hermes.safety import safety_check, SafetyViolation
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+CONST_4 = 4
+CONST_15 = 15
+CONST_30 = 30
+CONST_50 = 50
+CONST_120 = 120
+CONST_200 = 200
+CONST_1024 = 1024
+
 
 try:
     from PIL import ImageGrab
@@ -54,7 +64,7 @@ def _backup_file(target: pathlib.Path):
         shutil.copy2(target, bak)
 
 
-def _build_tree(path: pathlib.Path, max_depth: int = 4, ignore: set = None) -> list:
+def _build_tree(path: pathlib.Path, max_depth: int = CONST_4, ignore: set = None) -> list:
     if ignore is None:
         ignore = {"node_modules", ".git", "__pycache__", "dist", "build", ".next", "venv", ".venv"}
     result = []
@@ -77,7 +87,7 @@ async def tool_workspace_file_ops(action: str, path: str, content: str = "",
                                    old_text: str = "", new_text: str = "",
                                    pattern: str = "", start_line: int = 0,
                                    end_line: int = 0, include: str = "",
-                                   max_results: int = 30,
+                                   max_results: int = CONST_30,
                                    replace_all: bool = False) -> dict:
     target = _safe_path(path)
     if target is None and action not in ("list", "list_tree", "grep"):
@@ -138,7 +148,7 @@ async def tool_workspace_file_ops(action: str, path: str, content: str = "",
 
         elif action == "list_tree":
             scan = target if target and target.exists() else WORKSPACE_DIR
-            tree = _build_tree(scan, max_depth=4)
+            tree = _build_tree(scan, max_depth=CONST_4)
             return {"tree": tree, "success": True}
 
         elif action == "search_replace":
@@ -193,7 +203,7 @@ async def tool_workspace_file_ops(action: str, path: str, content: str = "",
                         results.append({
                             "file": str(rel),
                             "line": i + 1,
-                            "text": line.strip()[:200],
+                            "text": line.strip()[:CONST_200],
                         })
                 if total_matches > max_results:
                     break
@@ -206,7 +216,7 @@ async def tool_workspace_file_ops(action: str, path: str, content: str = "",
         return {"error": str(e), "success": False}
 
 
-async def tool_execute_shell_command(command: str, timeout: int = 120, cwd: str = ".") -> dict:
+async def tool_execute_shell_command(command: str, timeout: int = CONST_120, cwd: str = ".") -> dict:
     work_dir = _safe_path(cwd) or WORKSPACE_DIR
     if not work_dir.exists():
         work_dir = WORKSPACE_DIR
@@ -251,7 +261,7 @@ async def tool_git_checkpoint(message: str, add_all: bool = True) -> dict:
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=30)
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=CONST_30)
         return proc.returncode, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
 
     try:
@@ -274,7 +284,7 @@ async def tool_git_checkpoint(message: str, add_all: bool = True) -> dict:
         return {"error": str(e), "success": False}
 
 
-async def tool_analyze_project_structure(path: str = ".", max_depth: int = 4, ignore: list = None) -> dict:
+async def tool_analyze_project_structure(path: str = ".", max_depth: int = CONST_4, ignore: list = None) -> dict:
     scan_path = _safe_path(path) or WORKSPACE_DIR
     if not scan_path.exists():
         return {"error": f"Path not found: {path}", "success": False}
@@ -362,7 +372,7 @@ async def tool_read_image(path: str) -> dict:
 
 
 async def tool_search_code(pattern: str, include: str = "", path: str = ".",
-                           max_results: int = 50, context_lines: int = 2) -> dict:
+                           max_results: int = CONST_50, context_lines: int = 2) -> dict:
     try:
         search_dir = WORKSPACE_DIR
         target = _safe_path(path)
@@ -400,7 +410,7 @@ async def tool_search_code(pattern: str, include: str = "", path: str = ".",
                         results.append({
                             "file": str(rel),
                             "line": i + 1,
-                            "match": line.strip()[:200],
+                            "match": line.strip()[:CONST_200],
                             "context": "\n".join(context),
                         })
                         if len(results) >= max_results:
@@ -413,7 +423,7 @@ async def tool_search_code(pattern: str, include: str = "", path: str = ".",
         return {"error": str(e), "success": False}
 
 
-async def tool_run_python(code: str, timeout: int = 30) -> dict:
+async def tool_run_python(code: str, timeout: int = CONST_30) -> dict:
     timeout = min(timeout, 60)
     bus.emit("tool.python", {"code_len": len(code)})
     try:
@@ -440,11 +450,11 @@ async def tool_run_python(code: str, timeout: int = 30) -> dict:
         return {"error": str(e), "exit_code": -1, "success": False}
 
 
-async def tool_fetch_url(url: str, method: str = "GET", body: str = "", timeout: int = 15) -> dict:
+async def tool_fetch_url(url: str, method: str = "GET", body: str = "", timeout: int = CONST_15) -> dict:
     import urllib.request
     import urllib.error
-    timeout = min(timeout, 30)
-    bus.emit("tool.fetch", {"url": url[:200]})
+    timeout = min(timeout, CONST_30)
+    bus.emit("tool.fetch", {"url": url[:CONST_200]})
 
     try:
         req_body = body.encode("utf-8") if body and method == "POST" else None
@@ -541,7 +551,7 @@ async def tool_env_info() -> dict:
     import platform
     try:
         disk = shutil.disk_usage("/")
-        disk_info = {"total_gb": round(disk.total / (1024**3), 1), "free_gb": round(disk.free / (1024**3), 1)}
+        disk_info = {"total_gb": round(disk.total / (CONST_1024**CONST_3), 1), "free_gb": round(disk.free / (CONST_1024**CONST_3), 1)}
     except Exception:
         disk_info = {}
 
@@ -594,7 +604,7 @@ TOOLS_SCHEMA = [
                     "start_line": {"type": "integer", "description": "Start line for read_lines (1-indexed)"},
                     "end_line": {"type": "integer", "description": "End line for read_lines (inclusive)"},
                     "include": {"type": "string", "description": "File glob for grep (e.g. '*.py')"},
-                    "max_results": {"type": "integer", "default": 30, "description": "Max grep results"}
+                    "max_results": {"type": "integer", "default": CONST_30, "description": "Max grep results"}
                 },
                 "required": ["action", "path"]
             }
@@ -609,7 +619,7 @@ TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "Command to run"},
-                    "timeout": {"type": "integer", "default": 120},
+                    "timeout": {"type": "integer", "default": CONST_120},
                     "cwd": {"type": "string", "description": "Working dir relative to workspace"}
                 },
                 "required": ["command"]
@@ -640,7 +650,7 @@ TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "default": "."},
-                    "max_depth": {"type": "integer", "default": 4},
+                    "max_depth": {"type": "integer", "default": CONST_4},
                     "ignore": {"type": "array", "items": {"type": "string"}, "default": ["node_modules", ".git", "__pycache__", "dist", "build", ".next", "venv"]}
                 },
                 "required": []
@@ -698,7 +708,7 @@ TOOLS_SCHEMA = [
                     "pattern": {"type": "string", "description": "Regex pattern to search for"},
                     "include": {"type": "string", "description": "File glob filter (e.g. '*.py', '*.ts,*.tsx')"},
                     "path": {"type": "string", "default": ".", "description": "Relative path to search in"},
-                    "max_results": {"type": "integer", "default": 50},
+                    "max_results": {"type": "integer", "default": CONST_50},
                     "context_lines": {"type": "integer", "default": 2, "description": "Lines of context around matches"}
                 },
                 "required": ["pattern"]
@@ -728,7 +738,7 @@ TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {
                     "code": {"type": "string", "description": "Python code to execute"},
-                    "timeout": {"type": "integer", "default": 30}
+                    "timeout": {"type": "integer", "default": CONST_30}
                 },
                 "required": ["code"]
             }
@@ -745,7 +755,7 @@ TOOLS_SCHEMA = [
                     "url": {"type": "string", "description": "URL to fetch"},
                     "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
                     "body": {"type": "string", "description": "POST body (JSON string)"},
-                    "timeout": {"type": "integer", "default": 15}
+                    "timeout": {"type": "integer", "default": CONST_15}
                 },
                 "required": ["url"]
             }
@@ -947,7 +957,7 @@ async def call_tool(name: str, args: dict) -> dict:
     bus.emit("tool.result", {
         "tool": name,
         "success": result.get("success", False),
-        "summary": json.dumps(result, ensure_ascii=False)[:200],
+        "summary": json.dumps(result, ensure_ascii=False)[:CONST_200],
     })
     return result
 

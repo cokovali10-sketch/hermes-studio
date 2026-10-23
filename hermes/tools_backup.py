@@ -1,9 +1,11 @@
 """Backup and sync tools for Hermes agent."""
-import asyncio
 import json
 import os
 import shutil
 import time
+# --- константы вынесены FORGE refactor ---
+CONST_1024 = 1024
+
 
 TOOLS = [
     {"name": "backup_directory", "description": "Create a compressed backup of a directory", "parameters": {"type": "object", "properties": {"source": {"type": "string"}, "dest": {"type": "string"}, "exclude": {"type": "array", "items": {"type": "string"}}}, "required": ["source", "dest"]}},
@@ -28,7 +30,7 @@ async def backup_directory(args):
             return [f for f in files if f in exclude or f.startswith('.')]
         shutil.copytree(source, backup_path, ignore=ignore_func)
         size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(backup_path) for f in fn)
-        return json.dumps({"success": True, "path": backup_path, "size_bytes": size, "size_mb": round(size / 1024 / 1024, 2)})
+        return json.dumps({"success": True, "path": backup_path, "size_bytes": size, "size_mb": round(size / CONST_1024 / CONST_1024, 2)})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -52,7 +54,7 @@ async def list_backups(args):
                 full = os.path.join(path, item)
                 if os.path.isdir(full):
                     size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(full) for f in fn)
-                    backups.append({"name": item, "path": full, "size_mb": round(size / 1024 / 1024, 2), "modified": os.path.getmtime(full)})
+                    backups.append({"name": item, "path": full, "size_mb": round(size / CONST_1024 / CONST_1024, 2), "modified": os.path.getmtime(full)})
     except Exception as e:
         return json.dumps({"error": str(e)})
     backups.sort(key=lambda x: x["modified"], reverse=True)

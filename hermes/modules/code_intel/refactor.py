@@ -6,6 +6,9 @@ import time
 from typing import Any
 
 from hermes.core import WORKSPACE_DIR, BACKUP_DIR
+# --- константы вынесены FORGE refactor ---
+CONST_200 = 200
+
 
 IGNORE_DIRS = {
     "node_modules", ".git", "__pycache__", "dist", "build", ".next",
@@ -179,7 +182,7 @@ def find_definitions(name: str, path: str) -> list[dict[str, Any]]:
                 results.append({
                     "file": rel,
                     "line": i + 1,
-                    "text": line.strip()[:200],
+                    "text": line.strip()[:CONST_200],
                     "type": _get_definition_type(line, ext),
                 })
 
@@ -257,7 +260,7 @@ def find_references(name: str, path: str) -> list[dict[str, Any]]:
                     results.append({
                         "file": rel,
                         "line": i + 1,
-                        "text": line.strip()[:200],
+                        "text": line.strip()[:CONST_200],
                     })
 
     return results

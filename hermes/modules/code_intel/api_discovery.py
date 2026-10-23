@@ -2,6 +2,9 @@
 import pathlib
 import re
 from typing import Any
+# --- константы вынесены FORGE refactor ---
+CONST_5 = 5
+
 
 IGNORE_DIRS = {
     "node_modules", ".git", "__pycache__", "dist", "build", ".next",
@@ -113,7 +116,7 @@ def _find_js_endpoints(content: str, file_path: str) -> list[dict[str, Any]]:
 
 
 def _find_handler_function(lines: list[str], decorator_line: int) -> str:
-    for i in range(decorator_line + 1, min(decorator_line + 5, len(lines))):
+    for i in range(decorator_line + 1, min(decorator_line + CONST_5, len(lines))):
         m = re.search(r'(?:async\s+)?def\s+(\w+)', lines[i])
         if m:
             return m.group(1)
@@ -121,7 +124,7 @@ def _find_handler_function(lines: list[str], decorator_line: int) -> str:
 
 
 def _find_js_handler(lines: list[str], route_line: int) -> str:
-    for i in range(route_line, min(route_line + 5, len(lines))):
+    for i in range(route_line, min(route_line + CONST_5, len(lines))):
         m = re.search(r'(?:async\s+)?(?:function\s+(\w+)|(\w+)\s*(?:=\s*(?:async\s+)?(?:function|\([^)]*\)\s*=>)))', lines[i])
         if m:
             return m.group(1) or m.group(2) or "unknown"

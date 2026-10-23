@@ -1,6 +1,12 @@
 """Container management tools for Hermes agent."""
 import asyncio
 import json
+# --- константы вынесены FORGE refactor ---
+CONST_120 = 120
+CONST_300 = 300
+CONST_3000 = 3000
+CONST_5000 = 5000
+
 
 TOOLS = [
     {"name": "docker_build", "description": "Build a Docker image from a Dockerfile", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Path to Dockerfile directory"}, "tag": {"type": "string", "description": "Image tag (name:version)"}}, "required": ["path", "tag"]}},
@@ -17,7 +23,7 @@ TOOLS = [
 
 functions = {}
 
-async def _run_cmd(cmd, timeout=120):
+async def _run_cmd(cmd, timeout=CONST_120):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
     )
@@ -28,8 +34,8 @@ async def docker_build(args):
     path = args.get("path", ".")
     tag = args.get("tag", "myapp:latest")
     try:
-        code, output = await _run_cmd(["docker", "build", "-t", tag, path], timeout=300)
-        return json.dumps({"success": code == 0, "tag": tag, "output": output[-3000:]})
+        code, output = await _run_cmd(["docker", "build", "-t", tag, path], timeout=CONST_300)
+        return json.dumps({"success": code == 0, "tag": tag, "output": output[-CONST_3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -62,7 +68,7 @@ async def docker_logs(args):
     lines = args.get("lines", 100)
     try:
         code, output = await _run_cmd(["docker", "logs", "--tail", str(lines), container])
-        return json.dumps({"success": code == 0, "container": container, "logs": output[-5000:]})
+        return json.dumps({"success": code == 0, "container": container, "logs": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -84,8 +90,8 @@ async def docker_compose_up(args):
     if args.get("build"):
         cmd.append("--build")
     try:
-        code, output = await _run_cmd(cmd, timeout=300)
-        return json.dumps({"success": code == 0, "output": output[-3000:]})
+        code, output = await _run_cmd(cmd, timeout=CONST_300)
+        return json.dumps({"success": code == 0, "output": output[-CONST_3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -95,7 +101,7 @@ async def docker_compose_down(args):
     if args.get("volumes"):
         cmd.append("-v")
     try:
-        code, output = await _run_cmd(cmd, timeout=120)
+        code, output = await _run_cmd(cmd, timeout=CONST_120)
         return json.dumps({"success": code == 0, "output": output})
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -105,23 +111,23 @@ async def docker_exec(args):
     command = args["command"]
     try:
         code, output = await _run_cmd(["docker", "exec", container] + command.split())
-        return json.dumps({"success": code == 0, "container": container, "output": output[-5000:]})
+        return json.dumps({"success": code == 0, "container": container, "output": output[-CONST_5000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 async def docker_push(args):
     image = args["image"]
     try:
-        code, output = await _run_cmd(["docker", "push", image], timeout=300)
-        return json.dumps({"success": code == 0, "image": image, "output": output[-3000:]})
+        code, output = await _run_cmd(["docker", "push", image], timeout=CONST_300)
+        return json.dumps({"success": code == 0, "image": image, "output": output[-CONST_3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 async def docker_pull(args):
     image = args["image"]
     try:
-        code, output = await _run_cmd(["docker", "pull", image], timeout=300)
-        return json.dumps({"success": code == 0, "image": image, "output": output[-3000:]})
+        code, output = await _run_cmd(["docker", "pull", image], timeout=CONST_300)
+        return json.dumps({"success": code == 0, "image": image, "output": output[-CONST_3000:]})
     except Exception as e:
         return json.dumps({"error": str(e)})
 

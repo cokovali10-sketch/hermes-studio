@@ -1,5 +1,4 @@
 """Memory system tools for the Hermes agent."""
-import json
 
 from hermes.modules.memory import memory_engine
 from hermes.modules.memory_store import project_id_from_path

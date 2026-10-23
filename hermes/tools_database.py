@@ -5,6 +5,11 @@ import json
 import os
 import pathlib
 import sqlite3
+# --- константы вынесены FORGE refactor ---
+CONST_120 = 120
+CONST_500 = 500
+CONST_3306 = 3306
+
 
 TOOLS = [
     {
@@ -159,10 +164,10 @@ async def query_sqlite(args):
         columns = [d[0] for d in desc] if desc else []
         return {
             "success": True,
-            "rows": rows[:500],
+            "rows": rows[:CONST_500],
             "count": len(rows),
             "columns": columns,
-            "truncated": len(rows) > 500,
+            "truncated": len(rows) > CONST_500,
         }
     except Exception as e:
         return {"error": str(e), "success": False}
@@ -191,7 +196,7 @@ async def query_postgres(args):
             columns = []
             conn.commit()
         conn.close()
-        return {"success": True, "rows": rows[:500], "count": len(rows), "columns": columns, "truncated": len(rows) > 500}
+        return {"success": True, "rows": rows[:CONST_500], "count": len(rows), "columns": columns, "truncated": len(rows) > CONST_500}
     except Exception as e:
         return {"error": str(e), "success": False}
 
@@ -212,7 +217,7 @@ async def query_mysql(args):
         parsed = urllib.parse.urlparse(conn_str)
         conn = pymysql.connect(
             host=parsed.hostname or "localhost",
-            port=parsed.port or 3306,
+            port=parsed.port or CONST_3306,
             user=parsed.username or "root",
             password=parsed.password or "",
             database=parsed.path.lstrip("/") or None,
@@ -228,7 +233,7 @@ async def query_mysql(args):
             columns = []
             conn.commit()
         conn.close()
-        return {"success": True, "rows": rows[:500], "count": len(rows), "columns": columns, "truncated": len(rows) > 500}
+        return {"success": True, "rows": rows[:CONST_500], "count": len(rows), "columns": columns, "truncated": len(rows) > CONST_500}
     except Exception as e:
         return {"error": str(e), "success": False}
 
@@ -280,7 +285,7 @@ async def backup_database(args):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=CONST_120)
             if proc.returncode != 0:
                 return {"error": stderr.decode("utf-8", errors="replace"), "success": False}
             size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
@@ -330,7 +335,7 @@ async def restore_database(args):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=CONST_120)
             if proc.returncode != 0:
                 return {"error": stderr.decode("utf-8", errors="replace"), "success": False}
             return {"success": True, "source": source, "target": target}
@@ -370,7 +375,7 @@ async def migrate_schema(args):
                 parsed = urllib.parse.urlparse(db_path)
                 conn = pymysql.connect(
                     host=parsed.hostname or "localhost",
-                    port=parsed.port or 3306,
+                    port=parsed.port or CONST_3306,
                     user=parsed.username or "root",
                     password=parsed.password or "",
                     database=parsed.path.lstrip("/") or None,

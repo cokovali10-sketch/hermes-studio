@@ -4,6 +4,11 @@ import re
 import pathlib
 import html.parser
 from typing import Any
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+CONST_5 = 5
+CONST_6 = 6
+
 
 
 def parse_file(path: str) -> dict[str, Any]:
@@ -221,12 +226,12 @@ def _parse_javascript(content: str, path: str) -> dict[str, Any]:
         if m.group(1):
             names = [n.strip().split(" as ")[0] for n in m.group(1).split(",")]
             nodes.append({"type": "import", "names": names, "source": m.group(2), "line": line_num})
-        elif m.group(3):
-            nodes.append({"type": "import", "names": [m.group(3)], "source": m.group(4), "line": line_num})
-        elif m.group(5):
-            nodes.append({"type": "import_side_effect", "source": m.group(5), "line": line_num})
-        elif m.group(6):
-            nodes.append({"type": "require", "name": m.group(6), "source": m.group(7), "line": line_num})
+        elif m.group(CONST_3):
+            nodes.append({"type": "import", "names": [m.group(CONST_3)], "source": m.group(4), "line": line_num})
+        elif m.group(CONST_5):
+            nodes.append({"type": "import_side_effect", "source": m.group(CONST_5), "line": line_num})
+        elif m.group(CONST_6):
+            nodes.append({"type": "require", "name": m.group(CONST_6), "source": m.group(7), "line": line_num})
 
     export_pattern = re.compile(
         r'export\s+(?:default\s+)?(?:function|class|const|let|var)\s+(\w+)',

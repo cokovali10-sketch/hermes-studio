@@ -9,8 +9,12 @@ from hermes.ollama import ollama
 from hermes.tools import TOOL_MAP, TOOLS_SCHEMA, call_tool
 from hermes.core import MODEL_AGENT, MAX_ITERATIONS, WORKSPACE_DIR
 from hermes.tool_router import classify_request, get_relevant_tools, get_tool_schemas, build_compact_system
-from hermes.planner import create_plan, render_plan_for_model, get_next_step, mark_step_done, suggest_recovery
+from hermes.planner import create_plan, render_plan_for_model, get_next_step, mark_step_done
 from hermes.workflows import match_workflow, render_workflow_for_model
+# --- константы вынесены FORGE refactor ---
+CONST_15 = 15
+CONST_80 = 80
+
 
 
 def _parse_tool_from_text(text: str) -> list:
@@ -116,8 +120,8 @@ class AgentLoop:
         self.consecutive_errors = 0
 
         self.classification = classify_request(task)
-        self.relevant_tools = get_relevant_tools(task, max_tools=15)
-        self.filtered_schemas = get_tool_schemas(task, TOOLS_SCHEMA, max_tools=15)
+        self.relevant_tools = get_relevant_tools(task, max_tools=CONST_15)
+        self.filtered_schemas = get_tool_schemas(task, TOOLS_SCHEMA, max_tools=CONST_15)
         self.workflow = match_workflow(task)
         self.plan = create_plan(task) if not self.workflow else None
         self.workflow_step = 0
@@ -284,7 +288,7 @@ class AgentLoop:
             remaining = self.workflow["steps"][self.workflow_step:]
             if remaining:
                 next_step = remaining[0]
-                args_str = json.dumps(next_step["args"], ensure_ascii=False)[:80]
+                args_str = json.dumps(next_step["args"], ensure_ascii=False)[:CONST_80]
                 return (
                     f"Continue the workflow. Next step: Call {next_step['tool']}({args_str})\n"
                     f"Available tools: {', '.join(self.relevant_tools[:10])}"
@@ -293,7 +297,7 @@ class AgentLoop:
         if self.plan:
             next_step = get_next_step(self.plan)
             if next_step:
-                args_str = json.dumps(next_step["args"], ensure_ascii=False)[:80]
+                args_str = json.dumps(next_step["args"], ensure_ascii=False)[:CONST_80]
                 return (
                     f"Next step: Call {next_step['tool']}({args_str})\n"
                     f"Hint: {next_step['hint']}\n"

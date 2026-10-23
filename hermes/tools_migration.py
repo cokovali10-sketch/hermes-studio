@@ -1,8 +1,10 @@
 """Data migration tools for Hermes agent."""
-import asyncio
 import csv
 import json
 import os
+# --- константы вынесены FORGE refactor ---
+CONST_10000 = 10000
+
 
 TOOLS = [
     {"name": "csv_to_json", "description": "Convert CSV file to JSON", "parameters": {"type": "object", "properties": {"input": {"type": "string"}, "output": {"type": "string"}}, "required": ["input", "output"]}},
@@ -10,7 +12,7 @@ TOOLS = [
     {"name": "xml_to_json", "description": "Convert XML to JSON", "parameters": {"type": "object", "properties": {"input": {"type": "string"}, "output": {"type": "string"}}, "required": ["input", "output"]}},
     {"name": "json_transform", "description": "Transform JSON data with filters and mappings", "parameters": {"type": "object", "properties": {"input": {"type": "string"}, "output": {"type": "string"}, "filter_key": {"type": "string"}, "filter_value": {"type": "string"}, "rename_key": {"type": "string"}, "rename_to": {"type": "string"}}, "required": ["input", "output"]}},
     {"name": "merge_json", "description": "Merge multiple JSON files", "parameters": {"type": "object", "properties": {"inputs": {"type": "array", "items": {"type": "string"}}, "output": {"type": "string"}}, "required": ["inputs", "output"]}},
-    {"name": "split_file", "description": "Split a large file into smaller chunks", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "lines_per_file": {"type": "integer", "default": 10000}, "output_dir": {"type": "string"}}}},
+    {"name": "split_file", "description": "Split a large file into smaller chunks", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "lines_per_file": {"type": "integer", "default": CONST_10000}, "output_dir": {"type": "string"}}}},
     {"name": "encode_decode", "description": "Encode/decode data (base64, hex, url)", "parameters": {"type": "object", "properties": {"data": {"type": "string"}, "operation": {"type": "string", "description": "encode_base64, decode_base64, encode_hex, decode_hex, encode_url, decode_url"}}, "required": ["data", "operation"]}},
 ]
 
@@ -109,7 +111,7 @@ async def merge_json(args):
 
 async def split_file(args):
     path = args["path"]
-    lines_per = args.get("lines_per_file", 10000)
+    lines_per = args.get("lines_per_file", CONST_10000)
     output_dir = args.get("output_dir", os.path.dirname(path))
     try:
         with open(path, 'r') as f:

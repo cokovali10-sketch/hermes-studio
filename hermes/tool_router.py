@@ -1,6 +1,9 @@
 """Smart tool router — pre-filters 100 tools down to 5-15 relevant per request."""
 import re
 from datetime import datetime
+# --- константы вынесены FORGE refactor ---
+CONST_15 = 15
+
 
 
 _TOOL_CATEGORIES = {
@@ -159,7 +162,7 @@ def classify_request(prompt: str) -> dict:
     }
 
 
-def get_relevant_tools(prompt: str, max_tools: int = 15) -> list:
+def get_relevant_tools(prompt: str, max_tools: int = CONST_15) -> list:
     """Return a filtered list of tool names relevant to the prompt."""
     classification = classify_request(prompt)
     categories = classification["categories"]
@@ -224,7 +227,7 @@ def get_relevant_tools(prompt: str, max_tools: int = 15) -> list:
     return unique[:max_tools]
 
 
-def get_tool_schemas(prompt: str, all_schemas: list, max_tools: int = 15) -> list:
+def get_tool_schemas(prompt: str, all_schemas: list, max_tools: int = CONST_15) -> list:
     """Return filtered tool schemas relevant to the prompt."""
     relevant = set(get_relevant_tools(prompt, max_tools))
     return [s for s in all_schemas if s["function"]["name"] in relevant]

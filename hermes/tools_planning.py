@@ -2,7 +2,6 @@
 import json
 
 from hermes.modules.planning import planning_engine
-from hermes.modules.plan_schema import PlanStatus
 
 
 async def tool_create_plan(task: str, phases: list[dict] | None = None, context: str = "") -> dict:

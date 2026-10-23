@@ -1,13 +1,22 @@
 """AI/ML tools for Hermes agent."""
 import asyncio
 import json
-import os
 import re
 import sys
+# --- константы вынесены FORGE refactor ---
+CONST_0_2 = 0.2
+CONST_0_3 = 0.3
+CONST_0_7 = 0.7
+CONST_150 = 150
+CONST_256 = 256
+CONST_1024 = 1024
+CONST_2048 = 2048
+CONST_3000 = 3000
+
 
 TOOLS = [
-    {"name": "generate_text", "description": "Generate text using a local LLM (Ollama)", "parameters": {"type": "object", "properties": {"prompt": {"type": "string", "description": "Prompt to generate from"}, "model": {"type": "string", "description": "Model name", "default": "llama3"}, "max_tokens": {"type": "integer", "description": "Max tokens to generate", "default": 1024}, "temperature": {"type": "number", "description": "Temperature (0-1)", "default": 0.7}}, "required": ["prompt"]}},
-    {"name": "summarize_text", "description": "Summarize long text into key points", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "Text to summarize"}, "max_length": {"type": "integer", "description": "Approximate max words in summary", "default": 150}, "model": {"type": "string", "description": "Model to use", "default": "llama3"}}, "required": ["text"]}},
+    {"name": "generate_text", "description": "Generate text using a local LLM (Ollama)", "parameters": {"type": "object", "properties": {"prompt": {"type": "string", "description": "Prompt to generate from"}, "model": {"type": "string", "description": "Model name", "default": "llama3"}, "max_tokens": {"type": "integer", "description": "Max tokens to generate", "default": CONST_1024}, "temperature": {"type": "number", "description": "Temperature (0-1)", "default": CONST_0_7}}, "required": ["prompt"]}},
+    {"name": "summarize_text", "description": "Summarize long text into key points", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "Text to summarize"}, "max_length": {"type": "integer", "description": "Approximate max words in summary", "default": CONST_150}, "model": {"type": "string", "description": "Model to use", "default": "llama3"}}, "required": ["text"]}},
     {"name": "translate_text", "description": "Translate text between languages", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "Text to translate"}, "source_lang": {"type": "string", "description": "Source language code (e.g. en, es, fr)", "default": "auto"}, "target_lang": {"type": "string", "description": "Target language code"}, "model": {"type": "string", "description": "Model to use", "default": "llama3"}}, "required": ["text", "target_lang"]}},
     {"name": "analyze_sentiment", "description": "Analyze sentiment of text (positive/negative/neutral)", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "Text to analyze"}, "model": {"type": "string", "description": "Model to use", "default": "llama3"}}, "required": ["text"]}},
     {"name": "extract_keywords", "description": "Extract keywords and key phrases from text", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "Text to extract keywords from"}, "num_keywords": {"type": "integer", "description": "Number of keywords to extract", "default": 10}}, "required": ["text"]}},
@@ -20,7 +29,7 @@ TOOLS = [
 
 functions = {}
 
-async def _ollama_generate(prompt, model="llama3", temperature=0.7, max_tokens=1024):
+async def _ollama_generate(prompt, model="llama3", temperature=CONST_0_7, max_tokens=CONST_1024):
     try:
         code = f"""
 import json, urllib.request
@@ -51,8 +60,8 @@ except Exception as e:
 async def generate_text(args):
     prompt = args["prompt"]
     model = args.get("model", "llama3")
-    max_tokens = args.get("max_tokens", 1024)
-    temperature = args.get("temperature", 0.7)
+    max_tokens = args.get("max_tokens", CONST_1024)
+    temperature = args.get("temperature", CONST_0_7)
     result = await _ollama_generate(prompt, model, temperature, max_tokens)
     if "error" in result:
         return json.dumps(result)
@@ -60,10 +69,10 @@ async def generate_text(args):
 
 async def summarize_text(args):
     text = args["text"]
-    max_length = args.get("max_length", 150)
+    max_length = args.get("max_length", CONST_150)
     model = args.get("model", "llama3")
     prompt = f"Summarize the following text in approximately {max_length} words. Be concise and capture the key points:\n\n{text[:4000]}"
-    result = await _ollama_generate(prompt, model, 0.3, 512)
+    result = await _ollama_generate(prompt, model, CONST_0_3, 512)
     if "error" in result:
         return json.dumps(result)
     return json.dumps({"success": True, "summary": result.get("response", ""), "original_length": len(text.split()), "model": model})
@@ -76,8 +85,8 @@ async def translate_text(args):
     lang_names = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian", "pt": "Portuguese", "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "hi": "Hindi"}
     target_name = lang_names.get(target_lang, target_lang)
     source_name = lang_names.get(source_lang, "auto-detected") if source_lang != "auto" else "auto-detected"
-    prompt = f"Translate the following text from {source_name} to {target_name}. Return ONLY the translation, no explanations:\n\n{text[:3000]}"
-    result = await _ollama_generate(prompt, model, 0.2, 2048)
+    prompt = f"Translate the following text from {source_name} to {target_name}. Return ONLY the translation, no explanations:\n\n{text[:CONST_3000]}"
+    result = await _ollama_generate(prompt, model, CONST_0_2, CONST_2048)
     if "error" in result:
         return json.dumps(result)
     return json.dumps({"success": True, "translation": result.get("response", ""), "source_lang": source_lang, "target_lang": target_lang, "model": model})
@@ -93,7 +102,7 @@ async def analyze_sentiment(args):
 Text: {text[:2000]}
 
 Respond with ONLY the JSON object:"""
-    result = await _ollama_generate(prompt, model, 0.1, 256)
+    result = await _ollama_generate(prompt, model, 0.1, CONST_256)
     if "error" in result:
         return json.dumps(result)
     response = result.get("response", "")
@@ -109,8 +118,8 @@ Respond with ONLY the JSON object:"""
 async def extract_keywords(args):
     text = args["text"]
     num_keywords = args.get("num_keywords", 10)
-    prompt = f"Extract the top {num_keywords} keywords/key phrases from this text. Return them as a comma-separated list:\n\n{text[:3000]}"
-    result = await _ollama_generate(prompt, "llama3", 0.2, 256)
+    prompt = f"Extract the top {num_keywords} keywords/key phrases from this text. Return them as a comma-separated list:\n\n{text[:CONST_3000]}"
+    result = await _ollama_generate(prompt, "llama3", CONST_0_2, CONST_256)
     if "error" in result:
         return json.dumps(result)
     response = result.get("response", "")
@@ -131,7 +140,7 @@ Requirements:
 - Return ONLY the code, no explanations
 
 Code:"""
-    result = await _ollama_generate(prompt, model, 0.3, 2048)
+    result = await _ollama_generate(prompt, model, CONST_0_3, CONST_2048)
     if "error" in result:
         return json.dumps(result)
     code = result.get("response", "")
@@ -147,11 +156,11 @@ async def explain_code(args):
     prompt = f"""Explain what this code does{lang_hint}. Be clear and thorough:
 
 ```{language}
-{code[:3000]}
+{code[:CONST_3000]}
 ```
 
 Explanation:"""
-    result = await _ollama_generate(prompt, model, 0.3, 1024)
+    result = await _ollama_generate(prompt, model, CONST_0_3, CONST_1024)
     if "error" in result:
         return json.dumps(result)
     return json.dumps({"success": True, "explanation": result.get("response", ""), "model": model})
@@ -171,7 +180,7 @@ async def refactor_code(args):
 
 Original code:
 ```{language}
-{code[:3000]}
+{code[:CONST_3000]}
 ```
 
 Provide:
@@ -179,7 +188,7 @@ Provide:
 2. A brief explanation of changes
 
 Refactored code:"""
-    result = await _ollama_generate(prompt, model, 0.3, 2048)
+    result = await _ollama_generate(prompt, model, CONST_0_3, CONST_2048)
     if "error" in result:
         return json.dumps(result)
     response = result.get("response", "")

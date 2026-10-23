@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import time
 
 from hermes.core import ROOT
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+CONST_1000 = 1000
+
 
 PERF_FILE = ROOT / ".hermes" / "model_performance.json"
 PERF_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -25,7 +28,7 @@ class PerfProfiler:
 
     def _save(self):
         try:
-            PERF_FILE.write_text(json.dumps(self._records[-1000:], indent=2), encoding="utf-8")
+            PERF_FILE.write_text(json.dumps(self._records[-CONST_1000:], indent=2), encoding="utf-8")
         except Exception:
             pass
 
@@ -67,12 +70,12 @@ class PerfProfiler:
             task_scores = {}
             for task, ts in s["task_types"].items():
                 task_scores[task] = {
-                    "success_rate": round(ts["successes"] / ts["total"], 3) if ts["total"] > 0 else 0,
+                    "success_rate": round(ts["successes"] / ts["total"], CONST_3) if ts["total"] > 0 else 0,
                     "avg_ms": round(ts["total_ms"] / ts["total"], 2) if ts["total"] > 0 else 0,
                     "count": ts["total"],
                 }
             result[model] = {
-                "success_rate": round(success_rate, 3),
+                "success_rate": round(success_rate, CONST_3),
                 "avg_ms": round(avg_ms, 2),
                 "total_calls": s["total"],
                 "task_types": task_scores,
@@ -87,7 +90,7 @@ class PerfProfiler:
         for model, info in scores.items():
             task_info = info["task_types"].get(task_type)
             if task_info and task_info["count"] >= 2:
-                score = task_info["success_rate"] * 1000 - task_info["avg_ms"] / 100
+                score = task_info["success_rate"] * CONST_1000 - task_info["avg_ms"] / 100
                 if score > best_score:
                     best_score = score
                     best_model = model

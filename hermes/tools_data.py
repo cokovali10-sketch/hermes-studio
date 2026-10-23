@@ -1,11 +1,13 @@
 """Data processing tools for Hermes agent."""
-import asyncio
 import csv
 import io
 import json
 import pathlib
 import re
 import xml.etree.ElementTree as ET
+# --- константы вынесены FORGE refactor ---
+CONST_3 = 3
+
 
 TOOLS = [
     {"name": "parse_json", "description": "Parse and validate JSON, optionally extract fields", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "JSON string or file path"}, "path": {"type": "string", "description": "JQ-style dot path to extract (e.g. 'data.items[0].name')"}}, "required": ["input"]}},
@@ -14,7 +16,7 @@ TOOLS = [
     {"name": "parse_xml", "description": "Parse XML content and return as JSON tree", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "XML string or file path"}}, "required": ["input"]}},
     {"name": "convert_json_yaml", "description": "Convert between JSON and YAML formats", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "Input content or file path"}, "direction": {"type": "string", "enum": ["json_to_yaml", "yaml_to_json"], "description": "Conversion direction"}}, "required": ["input", "direction"]}},
     {"name": "merge_json", "description": "Merge multiple JSON objects or files", "parameters": {"type": "object", "properties": {"sources": {"type": "array", "items": {"type": "string"}, "description": "JSON strings or file paths to merge"}, "strategy": {"type": "string", "enum": ["deep", "shallow", "replace"], "default": "deep"}}}},
-    {"name": "diff_files", "description": "Compute line-by-line diff between two files", "parameters": {"type": "object", "properties": {"file_a": {"type": "string", "description": "First file path"}, "file_b": {"type": "string", "description": "Second file path"}, "context_lines": {"type": "integer", "default": 3}}, "required": ["file_a", "file_b"]}},
+    {"name": "diff_files", "description": "Compute line-by-line diff between two files", "parameters": {"type": "object", "properties": {"file_a": {"type": "string", "description": "First file path"}, "file_b": {"type": "string", "description": "Second file path"}, "context_lines": {"type": "integer", "default": CONST_3}}, "required": ["file_a", "file_b"]}},
     {"name": "sort_data", "description": "Sort a JSON array by one or more fields", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "JSON array string or file path"}, "fields": {"type": "array", "items": {"type": "string"}, "description": "Field names to sort by"}, "descending": {"type": "boolean", "default": False}}}},
     {"name": "filter_data", "description": "Filter a JSON array by field conditions", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "JSON array string or file path"}, "field": {"type": "string", "description": "Field to filter on"}, "operator": {"type": "string", "enum": ["eq", "ne", "gt", "lt", "gte", "lte", "contains", "starts_with", "ends_with", "regex"], "description": "Comparison operator"}, "value": {"type": "string", "description": "Value to compare against"}}}},
     {"name": "aggregate_data", "description": "Aggregate/summarize a JSON array (count, sum, avg, min, max, group_by)", "parameters": {"type": "object", "properties": {"input": {"type": "string", "description": "JSON array string or file path"}, "operation": {"type": "string", "enum": ["count", "sum", "avg", "min", "max", "group_by"], "description": "Aggregation operation"}, "field": {"type": "string", "description": "Field to aggregate on (required for sum/avg/min/max/group_by)"}, "group_field": {"type": "string", "description": "Field for group_by (alternative to field)"}}}},
@@ -204,7 +206,7 @@ async def merge_json(args):
 async def diff_files(args):
     file_a = args["file_a"]
     file_b = args["file_b"]
-    context = args.get("context_lines", 3)
+    context = args.get("context_lines", CONST_3)
     try:
         a = pathlib.Path(file_a)
         b = pathlib.Path(file_b)
