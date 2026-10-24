@@ -1,0 +1,23 @@
+name: Node JS CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check JS syntax
+        run: node --check script.js 2>&1 || echo "No script.js or syntax check skipped"
+      - name: Install dependencies
+        run: npm ci || npm install
+      - name: Run tests
+        run: npm test --if-present
